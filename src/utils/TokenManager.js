@@ -3,7 +3,7 @@ export class TokenManager {
   static KEY = "tableToken";
   static EXPIRY_KEY = "tableTokenExpiry";
 
-  static setToken(token, expiresInMinutes = 5) {
+  static setToken(token, expiresInMinutes = 40) {
     const expiry = Date.now() + expiresInMinutes * 60 * 1000;
     localStorage.setItem(this.KEY, token);
     localStorage.setItem(this.EXPIRY_KEY, expiry.toString());

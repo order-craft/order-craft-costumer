@@ -18,7 +18,7 @@ import { TokenManager } from "../utils/TokenManager";
 
 // UI components (styled)
 const Container = tw(
-  ContainerBase
+  ContainerBase,
 )`min-h-screen bg-gradient-to-b from-primary-500 to-primary-700 text-white font-medium flex justify-center -m-8`;
 const Content = tw.div`max-w-screen-xl m-0 sm:mx-20 sm:my-16 bg-white text-gray-900 shadow-lg sm:rounded-xl flex justify-center flex-1`;
 const MainContainer = tw.div`w-full p-6 sm:p-12 flex flex-col items-center`;
@@ -93,7 +93,7 @@ const Login = () => {
           enableHighAccuracy: true,
           timeout: 10000,
           maximumAge: 0,
-        }
+        },
       );
     });
   };
@@ -143,12 +143,14 @@ const Login = () => {
 
         const response = await axios.post(`${baseUrl}/auth/login-qr`, {
           token,
+          lat: currentLocation.lat,
+          lon: currentLocation.lon,
         });
 
         if (response.status === 200) {
           const distance = calculateDistance(
             currentLocation,
-            response.data.placeLocation
+            response.data.placeLocation,
           );
 
           if (distance === null) {
@@ -181,7 +183,7 @@ const Login = () => {
         setIsLoading(false);
       }
     },
-    [dispatch, navigate]
+    [dispatch, navigate],
   );
 
   const closeModal = () => setShowModal(false);
