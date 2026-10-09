@@ -167,8 +167,17 @@ const Login = () => {
             tableNumber,
             placeName,
             placeLogo,
+            statusFlowEnabled,
           } = response.data;
-          dispatch(setTableInfo({ tableNumber, placeName, placeLogo }));
+          dispatch(
+            setTableInfo({
+              tableNumber,
+              placeName,
+              placeLogo,
+              statusFlowEnabled:
+                statusFlowEnabled === undefined ? true : statusFlowEnabled,
+            }),
+          );
           TokenManager.setToken(newToken);
           navigate("/menu");
         } else {

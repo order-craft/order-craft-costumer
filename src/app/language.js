@@ -51,6 +51,7 @@ const translations = {
     backToMenu: "Back to menu",
     totalWithoutTips: "Total (without tips)",
     totalWithTips: "Total (with tips)",
+    placed: "Placed",
   },
   French: {
     price: "Prix",
@@ -103,6 +104,7 @@ const translations = {
     qty: "Qté",
     totalWithoutTips: "Total (hors pourboires)",
     totalWithTips: "Total (avec pourboires)",
+    placed: "Passée",
   },
   Italian: {
     welcomeTo: "benvenuti a",
@@ -156,6 +158,7 @@ const translations = {
     qty: "Quantità",
     totalWithoutTips: "Totale (senza mance)",
     totalWithTips: "Totale (con mance)",
+    placed: "Effettuato",
   },
 };
 

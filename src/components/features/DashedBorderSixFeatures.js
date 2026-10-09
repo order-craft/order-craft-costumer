@@ -80,16 +80,66 @@ const OrderList = () => {
   // Memoized playRingtone function
 
   const playRingtone = useCallback(() => {
-    if (ringtoneRef.current) {
-      ringtoneRef.current.pause();
-      ringtoneRef.current.currentTime = 0;
+    const audio = ringtoneRef.current;
+    if (!audio) return;
+    try {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.muted = false;
+      const p = audio.play();
+      if (p && typeof p.catch === "function") {
+        p.catch(() => {
+          // Autoplay still blocked — silently ignore. The sound will work
+          // the next time after the user interacts with the page.
+        });
+      }
+    } catch {
+      // Some browsers throw synchronously — ignore.
     }
+  }, []);
+  // Create the ringtone once and unlock it on the first user gesture
+  useEffect(() => {
     const audio = new Audio("/orderChange.m4a");
     audio.loop = false;
-    audio.play();
+    audio.preload = "auto";
     ringtoneRef.current = audio;
-  }, []);
+    audio.addEventListener("ended", () => {
+      audio.currentTime = 0;
+    });
+    const unlock = () => {
+      // A short muted play unlocks playback in most browsers
+      audio.muted = true;
+      audio
+        .play()
+        .then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.muted = false;
+        })
+        .catch(() => {
+          // Not fatal — we'll try again on the next gesture
+          audio.muted = false;
+        });
+      document.removeEventListener("click", unlock);
+      document.removeEventListener("touchstart", unlock);
+      document.removeEventListener("keydown", unlock);
+    };
 
+    document.addEventListener("click", unlock, { once: true });
+    document.addEventListener("touchstart", unlock, { once: true });
+    document.addEventListener("keydown", unlock, { once: true });
+
+    return () => {
+      document.removeEventListener("click", unlock);
+      document.removeEventListener("touchstart", unlock);
+      document.removeEventListener("keydown", unlock);
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+      ringtoneRef.current = null;
+    };
+  }, []);
   useEffect(() => {
     const fetchOrders = async () => {
       try {
@@ -101,7 +151,7 @@ const OrderList = () => {
 
         // Sort orders by timestamp (most recent first)
         const sortedOrders = response.data.sort(
-          (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+          (a, b) => new Date(b.timestamp) - new Date(a.timestamp),
         );
 
         setOrders(sortedOrders);
@@ -117,7 +167,7 @@ const OrderList = () => {
 
             return acc;
           },
-          { withoutTips: 0, withTips: 0 }
+          { withoutTips: 0, withTips: 0 },
         );
 
         setTotalWithoutTips(totals.withoutTips.toFixed(2));
@@ -142,9 +192,12 @@ const OrderList = () => {
       auth: { token },
     });
 
-    socket.on("orderUpdated", () => {
+    socket.on("orderUpdated", (payload) => {
       fetchOrders();
-      playRingtone();
+      // Only ring when the update is NOT a payment-only change
+      if (!payload || payload.payed !== true) {
+        playRingtone();
+      }
     });
 
     return () => {
@@ -193,6 +246,9 @@ const OrderList = () => {
   };
   const t = useSelector((state) => state.language.language);
   const Language = translations[t];
+  const statusFlowEnabled = useSelector(
+    (state) => state.table.statusFlowEnabled,
+  );
 
   if (isLoading) {
     return <Loading />;
@@ -227,10 +283,12 @@ const OrderList = () => {
                     {order.status === "pending"
                       ? Language.pending
                       : order.status === "preparing"
-                      ? Language.preparing
-                      : order.status === "completed"
-                      ? Language.completed
-                      : Language.cancelled}
+                        ? Language.preparing
+                        : order.status === "completed"
+                          ? statusFlowEnabled
+                            ? Language.completed
+                            : Language.placed
+                          : Language.cancelled}
                   </span>
                   <div className="description">
                     <div>
@@ -290,13 +348,22 @@ const OrderList = () => {
                     <>
                       <PrimaryButton
                         onClick={() => handleModify(order._id)}
-                        disabled={order.status !== "pending"}
+                        disabled={
+                          order.status !== "pending" || !statusFlowEnabled
+                        }
                       >
                         {Language.modify}
                       </PrimaryButton>
                       <PrimaryButton
                         onClick={() => handleCancel(order._id)}
-                        disabled={order.status !== "pending"}
+                        disabled={
+                          !(
+                            order.status === "pending" ||
+                            (!statusFlowEnabled &&
+                              order.status === "completed" &&
+                              !order.payed)
+                          )
+                        }
                       >
                         {Language.cancel}
                       </PrimaryButton>

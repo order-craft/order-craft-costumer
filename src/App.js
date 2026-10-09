@@ -1,6 +1,11 @@
-import React from "react";
+import React, { useEffect } from "react";
+import { useDispatch } from "react-redux";
+import { io } from "socket.io-client";
 import tw from "twin.macro";
 import GlobalStyles from "styles/GlobalStyles";
+import { baseUrl } from "helpers/BaseUrl";
+import { GetToken } from "helpers/GetToken";
+import { setStatusFlowEnabled } from "features/TableSlice";
 import { css } from "styled-components/macro"; //eslint-disable-line
 import {
   BrowserRouter as Router,
@@ -30,7 +35,21 @@ export default function App() {
   // Retrieve table info from Redux
   const tableNumber = useSelector((state) => state.table.tableNumber);
   const placeName = useSelector((state) => state.table.placeName);
+  const dispatch = useDispatch();
 
+  useEffect(() => {
+    const token = GetToken();
+    if (!token) return;
+
+    const socket = io(baseUrl, { auth: { token } });
+    socket.on("tenantConfigChanged", (cfg) => {
+      if (typeof cfg?.statusFlowEnabled === "boolean") {
+        dispatch(setStatusFlowEnabled(cfg.statusFlowEnabled));
+      }
+    });
+
+    return () => socket.disconnect();
+  }, [dispatch]);
   return (
     <>
       <GlobalStyles />
