@@ -3,9 +3,10 @@ import { useDispatch } from "react-redux";
 import { io } from "socket.io-client";
 import tw from "twin.macro";
 import GlobalStyles from "styles/GlobalStyles";
+import styled from "styled-components";
 import { baseUrl } from "helpers/BaseUrl";
 import { GetToken } from "helpers/GetToken";
-import { setStatusFlowEnabled } from "features/TableSlice";
+import { setStatusFlowEnabled, setBrandColor } from "features/TableSlice";
 import { css } from "styled-components/macro"; //eslint-disable-line
 import {
   BrowserRouter as Router,
@@ -27,8 +28,11 @@ import TipsPage from "components/features/TipsPage.js";
 // import NotFoundPage from "./pages/NotFoundPage"; // Import the NotFoundPage component
 
 // Move HighlightedText definition outside of the App component
-const HighlightedText = tw.span`bg-primary-500 text-gray-100 px-4 transform -skew-x-12 inline-block`;
-
+const HighlightedText = styled.span`
+  ${tw`text-gray-100 px-4 inline-block`}
+  background-color: ${({ $brandColor }) => $brandColor || "#8B5A2B"};
+  transform: skewX(-12deg);
+`;
 export default function App() {
   const t = useSelector((state) => state.language.language);
   const Language = translations[t];
@@ -36,6 +40,7 @@ export default function App() {
   const tableNumber = useSelector((state) => state.table.tableNumber);
   const placeName = useSelector((state) => state.table.placeName);
   const dispatch = useDispatch();
+  const brandColor = useSelector((state) => state.table.brandColor);
 
   useEffect(() => {
     const token = GetToken();
@@ -45,6 +50,9 @@ export default function App() {
     socket.on("tenantConfigChanged", (cfg) => {
       if (typeof cfg?.statusFlowEnabled === "boolean") {
         dispatch(setStatusFlowEnabled(cfg.statusFlowEnabled));
+      }
+      if (typeof cfg?.brandColor === "string") {
+        dispatch(setBrandColor(cfg.brandColor));
       }
     });
 
@@ -103,7 +111,9 @@ export default function App() {
                   heading={
                     <>
                       {Language.welcomeTo}:
-                      <HighlightedText>{placeName}</HighlightedText>
+                      <HighlightedText $brandColor={brandColor}>
+                        {placeName}
+                      </HighlightedText>{" "}
                     </>
                   }
                   subHeading={
@@ -124,7 +134,9 @@ export default function App() {
                   heading={
                     <PrivateRoute>
                       {Language.menuCheck}{" "}
-                      <HighlightedText>{Language.menu}</HighlightedText>
+                      <HighlightedText $brandColor={brandColor}>
+                        {Language.menu || "Menu"}
+                      </HighlightedText>
                     </PrivateRoute>
                   }
                 />

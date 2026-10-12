@@ -6,6 +6,7 @@ const initialState = {
   placeName: localStorage.getItem("placeName") || "Order Craft",
   placeLogo: logo,
   statusFlowEnabled: localStorage.getItem("statusFlowEnabled") !== "false",
+  brandColor: localStorage.getItem("brandColor") || "#8B5A2B",
 };
 
 const tableSlice = createSlice({
@@ -13,13 +14,21 @@ const tableSlice = createSlice({
   initialState,
   reducers: {
     setTableInfo(state, action) {
-      const { tableNumber, placeName, placeLogo, statusFlowEnabled } =
-        action.payload;
+      const {
+        tableNumber,
+        placeName,
+        placeLogo,
+        statusFlowEnabled,
+        brandColor,
+      } = action.payload;
       state.tableNumber = tableNumber;
       state.placeName = placeName;
       state.placeLogo = placeLogo;
       if (typeof statusFlowEnabled === "boolean") {
         state.statusFlowEnabled = statusFlowEnabled;
+      }
+      if (typeof brandColor === "string") {
+        state.brandColor = brandColor;
       }
 
       localStorage.setItem("tableNumber", tableNumber);
@@ -28,10 +37,17 @@ const tableSlice = createSlice({
       if (typeof statusFlowEnabled === "boolean") {
         localStorage.setItem("statusFlowEnabled", String(statusFlowEnabled));
       }
+      if (typeof brandColor === "string") {
+        localStorage.setItem("brandColor", brandColor);
+      }
     },
     setStatusFlowEnabled(state, action) {
       state.statusFlowEnabled = action.payload;
       localStorage.setItem("statusFlowEnabled", String(action.payload));
+    },
+    setBrandColor(state, action) {
+      state.brandColor = action.payload;
+      localStorage.setItem("brandColor", action.payload);
     },
     clearTableInfo(state) {
       state.tableNumber = null;
@@ -42,11 +58,16 @@ const tableSlice = createSlice({
       localStorage.removeItem("placeName");
       localStorage.removeItem("placeLogo");
       localStorage.removeItem("statusFlowEnabled");
+      localStorage.removeItem("brandColor");
     },
   },
 });
 
-export const { setTableInfo, setStatusFlowEnabled, clearTableInfo } =
-  tableSlice.actions;
+export const {
+  setTableInfo,
+  setStatusFlowEnabled,
+  setBrandColor,
+  clearTableInfo,
+} = tableSlice.actions;
 
 export default tableSlice.reducer;

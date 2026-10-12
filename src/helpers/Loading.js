@@ -1,93 +1,77 @@
 import React from "react";
-import { motion } from "framer-motion";
-import styled from "styled-components";
+import { useSelector } from "react-redux";
 import tw from "twin.macro";
-import { ReactComponent as FoodIcon } from "../images/dish.svg";
-import { ReactComponent as CoffeeIcon } from "../images/coffee.svg";
-import { ReactComponent as IceCreamIcon } from "../images/ice-cream.svg";
+import styled, { keyframes } from "styled-components";
 
-const LoadingContainer = styled.div`
-  ${tw`flex justify-center items-center h-screen w-full bg-gray-100`}
+/* ---------- animations ---------- */
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 `;
 
-const Tray = styled(motion.div)`
-  ${tw`relative flex justify-center items-center bg-white p-4 rounded-full shadow-lg`}
-  width: 150px;
-  height: 150px;
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
 `;
 
-const IconContainer = styled.div`
-  ${tw`absolute`}
-  width: 10px;
-  height: 10px;
+/* ---------- layout ---------- */
+const Page = tw.div`min-h-screen w-full bg-gray-100 flex flex-col items-center justify-center`;
+const Stack = tw.div`flex flex-col items-center gap-4`;
+
+const Ring = styled.div`
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 3px solid #e2e8f0;
+  border-top-color: ${({ $brandColor }) => $brandColor || "#8B5A2B"};
+  animation: ${spin} 0.9s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    border-color: ${({ $brandColor }) => $brandColor || "#8B5A2B"};
+    opacity: 0.9;
+  }
 `;
 
-const LoadingText = styled(motion.div)`
-  ${tw`mt-4 text-lg font-semibold text-gray-700 text-center`}
+const Text = styled.div`
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #4a5568;
+  letter-spacing: 0.02em;
+  animation: ${fadeIn} 0.4s ease-out;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 `;
 
-const trayVariants = {
-  animate: {
-    rotate: 360,
-    transition: {
-      rotate: {
-        repeat: Infinity,
-        repeatType: "loop",
-        duration: 3,
-        ease: "linear",
-      },
-    },
-  },
-};
+const Brand = styled.span`
+  color: ${({ $brandColor }) => $brandColor || "#8B5A2B"};
+`;
 
-const textVariants = {
-  initial: { opacity: 0, y: -20 },
-  animate: { opacity: 1, y: 0 },
-};
-
+/* ---------- component ---------- */
 const Loading = () => {
+  const brandColor = useSelector((state) => state.table?.brandColor);
+  const placeName = useSelector((state) => state.table?.placeName);
+
+  const hasPlace =
+    placeName && placeName !== "Order Craft" && placeName.trim() !== "";
+
   return (
-    <LoadingContainer>
-      <div className="flex flex-col items-center">
-        <Tray variants={trayVariants} initial="initial" animate="animate">
-          <IconContainer
-            style={{
-              top: "10%",
-              left: "40%",
-              transform: "translate(-50%, -50%)",
-            }}
-          >
-            <FoodIcon />
-          </IconContainer>
-          <IconContainer
-            style={{
-              top: "41%",
-              right: "30%",
-              transform: "translate(-50%, 50%)",
-            }}
-          >
-            <CoffeeIcon />
-          </IconContainer>
-          <IconContainer
-            style={{
-              top: "50%",
-              left: "10%",
-              transform: "translate(-50%, -50%)",
-            }}
-          >
-            <IceCreamIcon />
-          </IconContainer>
-        </Tray>
-        <LoadingText
-          initial="initial"
-          animate="animate"
-          variants={textVariants}
-          transition={{ duration: 0.5, yoyo: Infinity, delay: 0.8 }}
-        >
-          Loading...
-        </LoadingText>
-      </div>
-    </LoadingContainer>
+    <Page>
+      <Stack>
+        <Ring $brandColor={brandColor} aria-hidden="true" />
+        <Text>
+          {hasPlace ? (
+            <>
+              Loading <Brand $brandColor={brandColor}>{placeName}</Brand>
+            </>
+          ) : (
+            "Loading…"
+          )}
+        </Text>
+      </Stack>
+    </Page>
   );
 };
 

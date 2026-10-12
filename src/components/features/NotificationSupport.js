@@ -1,399 +1,628 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import tw from "twin.macro";
 import styled, { keyframes, css } from "styled-components";
-import { ReactComponent as SupportIconSvg } from "../../images/bill.svg";
-import socket from "helpers/soket/socket";
-import { GetToken } from "helpers/GetToken";
+import { useSelector } from "react-redux";
 import { jwtDecode } from "jwt-decode";
 import { io } from "socket.io-client";
-import { baseUrl } from "helpers/BaseUrl";
 import axios from "axios";
-import feather from "feather-icons";
-// Animation keyframes
+import { baseUrl } from "helpers/BaseUrl";
+import { GetToken } from "helpers/GetToken";
+
+/* ---------- feather icons ---------- */
+import { ReactComponent as LifeBuoyIcon } from "feather-icons/dist/icons/life-buoy.svg";
+import { ReactComponent as XIcon } from "feather-icons/dist/icons/x.svg";
+import { ReactComponent as CheckCircleIcon } from "feather-icons/dist/icons/check-circle.svg";
+import { ReactComponent as AlertCircleIcon } from "feather-icons/dist/icons/alert-circle.svg";
+import { ReactComponent as HelpCircleIcon } from "feather-icons/dist/icons/help-circle.svg";
+import { ReactComponent as CreditCardIcon } from "feather-icons/dist/icons/credit-card.svg";
+import { ReactComponent as DropletIcon } from "feather-icons/dist/icons/droplet.svg";
+import { ReactComponent as ShoppingBagIcon } from "feather-icons/dist/icons/shopping-bag.svg";
+import { ReactComponent as FileTextIcon } from "feather-icons/dist/icons/file-text.svg";
+import { ReactComponent as CoffeeIcon } from "feather-icons/dist/icons/coffee.svg";
+import { ReactComponent as BellIcon } from "feather-icons/dist/icons/bell.svg";
+import { ReactComponent as MoreHorizontalIcon } from "feather-icons/dist/icons/more-horizontal.svg";
+
+/* ---------- icon resolver ---------- */
+/* Map a request-type name or icon key to a Feather SVG. */
+const iconByName = {
+  "life-buoy": LifeBuoyIcon,
+  "help-circle": HelpCircleIcon,
+  "credit-card": CreditCardIcon,
+  droplet: DropletIcon,
+  "shopping-bag": ShoppingBagIcon,
+  "file-text": FileTextIcon,
+  coffee: CoffeeIcon,
+  bell: BellIcon,
+  "alert-circle": AlertCircleIcon,
+};
+
+/* Fallback: guess icon from name keywords */
+const guessIconFromName = (name) => {
+  const n = (name || "").toLowerCase();
+  if (n.includes("bill") || n.includes("check") || n.includes("pay"))
+    return CreditCardIcon;
+  if (n.includes("water") || n.includes("clean")) return DropletIcon;
+  if (n.includes("order") || n.includes("food")) return ShoppingBagIcon;
+  if (n.includes("menu") || n.includes("note")) return FileTextIcon;
+  if (n.includes("coffee") || n.includes("drink")) return CoffeeIcon;
+  if (n.includes("wait") || n.includes("call")) return BellIcon;
+  return MoreHorizontalIcon;
+};
+
+const resolveIcon = (iconName, label) => {
+  if (iconName && iconByName[iconName]) return iconByName[iconName];
+  return guessIconFromName(label || iconName);
+};
+
+/* ---------- animations ---------- */
 const pulse = keyframes`
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.05); opacity: 0.8; }
-  100% { transform: scale(1); opacity: 1; }
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(139, 90, 43, 0.35); }
+  70% { transform: scale(1.04); box-shadow: 0 0 0 16px rgba(139, 90, 43, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(139, 90, 43, 0); }
 `;
 
-const float = keyframes`
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
+const pulseActive = keyframes`
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.5); }
+  70% { transform: scale(1.06); box-shadow: 0 0 0 20px rgba(220, 53, 69, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
 `;
 
-const expand = keyframes`
-  0% { transform: scale(0); opacity: 0; }
-  80% { transform: scale(1.1); opacity: 0.8; }
-  100% { transform: scale(1); opacity: 1; }
+const slideUp = keyframes`
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 `;
 
-const ripple = keyframes`
-  0% { transform: scale(0.5); opacity: 1; }
-  100% { transform: scale(3); opacity: 0; }
+const fadeIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
 `;
 
-// Styled components
-const BubbleContainer = styled.div.attrs(({ $isDragging }) => ({
-  style: {
-    cursor: $isDragging ? "grabbing" : "pointer",
-  },
+/* ---------- bubble ---------- */
+const BubbleWrap = styled.div.attrs(({ $isDragging }) => ({
+  style: { cursor: $isDragging ? "grabbing" : "grab" },
 }))`
-  ${tw`fixed z-50`}
-  width: 60px;
-  height: 60px;
-  transition: all 0.3s ease;
-  user-select: none;
+  position: fixed;
+  z-index: 60;
+  width: 56px;
+  height: 56px;
   touch-action: none;
-
-  ${({ $isDragging }) => $isDragging && tw`shadow-xl`}
+  user-select: none;
+  ${({ $isDragging }) => $isDragging && "transition: none;"}
+  ${({ $isDragging }) =>
+    !$isDragging && "transition: left 0.25s ease, top 0.25s ease;"}
 `;
 
-const MainBubble = styled.div`
-  ${tw`absolute rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg`}
+const Bubble = styled.button`
   width: 100%;
   height: 100%;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  z-index: 10;
+  border-radius: 999px;
+  border: none;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: ${({ $brandColor, $processing }) =>
+    $processing ? "#dc2626" : $brandColor || "#8B5A2B"};
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  animation: ${({ $processing }) =>
+    $processing
+      ? css`
+          ${pulseActive} 1.6s ease-out infinite
+        `
+      : css`
+          ${pulse} 3s ease-out infinite
+        `};
 
-  ${({ $isActive }) =>
-    $isActive &&
-    css`
-      transform: scale(1.2);
-      box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
-    `}
+  &:active {
+    transform: scale(0.94);
+  }
 
-  ${({ $isPulsing }) =>
-    $isPulsing &&
-    css`
-      animation: ${pulse} 2s infinite;
-    `}
-
-  ${({ $isFloating }) =>
-    $isFloating &&
-    css`
-      animation: ${float} 3s ease-in-out infinite;
-    `}
-`;
-
-const StyledSupportIcon = styled(SupportIconSvg)`
-  width: 30px;
-  height: 30px;
-  transition: transform 0.3s ease;
-
-  ${({ $isActive }) =>
-    $isActive &&
-    css`
-      transform: rotate(45deg);
-    `}
-`;
-
-const RippleEffect = styled.div`
-  ${tw`absolute rounded-full bg-primary-300`}
-  width: 100%;
-  height: 100%;
-  animation: ${ripple} 1.5s ease-out infinite;
-  z-index: 5;
-`;
-
-const OptionBubble = styled.div`
-  ${tw`absolute rounded-full bg-white text-primary-500 flex items-center justify-center shadow-md`}
-  width: 50px;
-  height: 50px;
-  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  transform: scale(0);
-  opacity: 0;
-  z-index: 1;
-
-  ${({ $isOpen, $position }) =>
-    $isOpen &&
-    css`
-      transform: translate(${$position.x}px, ${$position.y}px) scale(1);
-      opacity: 1;
-    `}
-
-  &:hover {
-    transform: ${({ $isOpen, $position }) =>
-      $isOpen
-        ? `translate(${$position.x}px, ${$position.y}px) scale(1.1)`
-        : "scale(0)"};
-    box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+  svg {
+    width: 24px;
+    height: 24px;
   }
 `;
 
-const OptionLabel = styled.span`
-  ${tw`absolute text-xs font-bold whitespace-nowrap`}
-  color: white;
-  background: rgba(0, 0, 0, 0.7);
-  padding: 2px 6px;
-  border-radius: 10px;
-  bottom: -20px;
-  opacity: 1; /* Toujours visible */
-`;
-
-const MessageContainer = styled.div`
-  ${tw`fixed bg-green-500 text-white py-2 px-4 rounded-md shadow-lg`}
+/* ---------- message pill ---------- */
+const MessagePill = styled.div`
+  position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  top: 20%;
-  z-index: 100;
-  animation: ${expand} 0.3s ease-out;
+  bottom: 96px;
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  background: ${({ $tone, $brandColor }) => {
+    if ($tone === "error") return "#dc2626";
+    if ($tone === "success") return "#16a34a";
+    return $brandColor || "#8B5A2B";
+  }};
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+  animation: ${fadeIn} 0.2s ease-out;
+  max-width: calc(100vw - 32px);
+
+  svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
 `;
 
-// Dummy data for support request types
-// const supportOptions = [
-//   { id: 1, label: "Order Help", icon: "📝" },
-//   { id: 2, label: "Bill Request", icon: "💳" },
-//   { id: 3, label: "Clean Table", icon: "🧹" },
-//   { id: 4, label: "Other Issue", icon: "❓" },
-// ];
+/* ---------- bottom sheet ---------- */
+const Backdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.45);
+  animation: ${fadeIn} 0.15s ease-out;
+`;
 
+const Sheet = styled.div`
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 80;
+  background: #fff;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  padding: 8px 0 20px 0;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: ${slideUp} 0.22s ease-out;
+
+  @media (min-width: 640px) {
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 480px;
+    bottom: 24px;
+    border-radius: 20px;
+  }
+`;
+
+const SheetHandle = styled.div`
+  width: 44px;
+  height: 4px;
+  border-radius: 999px;
+  background: #cbd5e0;
+  margin: 8px auto 4px auto;
+`;
+
+const SheetHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px 6px 20px;
+`;
+
+const SheetTitle = tw.div`text-base font-black text-gray-900`;
+const SheetSub = tw.div`text-xs text-gray-500 mt-0.5`;
+const CloseBtn = styled.button`
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f3f5;
+  color: #4a5568;
+  border: none;
+  cursor: pointer;
+
+  &:active {
+    transform: scale(0.94);
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+`;
+
+const OptionList = styled.div`
+  padding: 8px 12px 0 12px;
+`;
+
+const Option = styled.button`
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 10px;
+  border-radius: 14px;
+  border: 1px solid #eef0f3;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 8px;
+  transition:
+    background-color 0.12s ease,
+    transform 0.12s ease;
+
+  &:hover {
+    background: #fafbfc;
+  }
+
+  &:active {
+    transform: scale(0.99);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+`;
+
+const OptionIcon = styled.div`
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: ${({ $brandColor }) => `${$brandColor || "#8B5A2B"}18`};
+  color: ${({ $brandColor }) => $brandColor || "#8B5A2B"};
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+`;
+
+const OptionText = tw.div`flex-1 min-w-0`;
+const OptionLabel = tw.div`text-sm font-bold text-gray-900`;
+const OptionDesc = tw.div`text-xs text-gray-500 truncate`;
+
+const LoadingRow = styled.div`
+  height: 64px;
+  border-radius: 14px;
+  background: #f1f3f5;
+  margin: 0 12px 8px 12px;
+  animation: ${fadeIn} 0.4s ease-out;
+`;
+
+const FallbackNote = tw.div`text-[11px] text-center text-gray-400 px-4 pt-2`;
+
+/* ---------- defaults when the API fails ---------- */
+const DEFAULT_OPTIONS = [
+  { id: "default-bill", name: "Bill", icon: "credit-card" },
+  { id: "default-water", name: "Water", icon: "droplet" },
+  { id: "default-clean", name: "Clean table", icon: "droplet" },
+  { id: "default-help", name: "Something else", icon: "help-circle" },
+];
+
+/* ---------- component ---------- */
 const NotifSupport = () => {
-  const [isActive, setIsActive] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [message, setMessage] = useState("");
-  const [position, setPosition] = useState({ x: 20, y: 100 });
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [supportOptions, setSupportOptions] = useState([]);
-  const [optionsError, setOptionsError] = useState(null);
-  const [loadingOptions, setLoadingOptions] = useState(true);
-  const bubbleRef = useRef(null);
-  const token = GetToken();
+  const [isOpen, setIsOpen] = useState(false);
+  const [options, setOptions] = useState([]);
+  const [optionsLoading, setOptionsLoading] = useState(true);
+  const [usingDefaults, setUsingDefaults] = useState(false);
+  const [processing, setProcessing] = useState(null); // id of the option being processed
+  const [message, setMessage] = useState(null); // { tone, text }
+  const [position, setPosition] = useState(() => {
+    if (typeof window === "undefined") return { x: 20, y: 500 };
+    return { x: window.innerWidth - 76, y: window.innerHeight - 150 };
+  });
 
-  // Decode token for table number and user ID
+  const dragState = useRef({
+    dragging: false,
+    moved: false,
+    startX: 0,
+    startY: 0,
+    ox: 0,
+    oy: 0,
+  });
+  const [isDraggingUi, setIsDraggingUi] = useState(false);
+  const bubbleRef = useRef(null);
+
+  const token = GetToken();
+  const brandColor = useSelector((state) => state.table.brandColor);
+
   let tableNumber = null;
-  let superClientId = null;
   if (token) {
     try {
-      const decodedToken = jwtDecode(token);
-      tableNumber = decodedToken.table?.number;
-      superClientId = decodedToken.user?.id;
-    } catch (error) {
-      console.error("Failed to decode token:", error);
+      const decoded = jwtDecode(token);
+      tableNumber = decoded.table?.number;
+    } catch (err) {
+      console.error("Failed to decode token for support bubble:", err);
     }
   }
-  //
-  // Default icons fallback
-  const getDefaultIcon = (index) => {
-    const defaultIcons = ["📝", "💳", "🧹", "❓"];
-    return defaultIcons[index % defaultIcons.length];
-  };
 
-  // Default options fallback
-  const getDefaultOptions = () => {
-    return [
-      { id: 1, label: "Order Help", icon: "📝" },
-      { id: 2, label: "Bill Request", icon: "💳" },
-      { id: 3, label: "Clean Table", icon: "🧹" },
-      { id: 4, label: "Other Issue", icon: "❓" },
-    ];
-  };
-
+  /* ---------- fetch options ---------- */
   useEffect(() => {
-    const fetchSupportOptions = async () => {
+    let cancelled = false;
+    const load = async () => {
       try {
-        setLoadingOptions(true);
-        const response = await axios.get(`${baseUrl}/sup/request-types`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const res = await axios.get(`${baseUrl}/sup/request-types`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
-        // Transform API data to match our expected format
-        const formattedOptions = response.data.data.map((option, index) => ({
-          id: option._id,
-          label: option.name,
-          icon: option.icon || getDefaultIcon(index), // Fallback to default icons
+        const list = (res.data?.data || []).map((o) => ({
+          id: o._id,
+          name: o.name,
+          icon: o.icon,
         }));
-
-        setSupportOptions(formattedOptions);
-      } catch (error) {
-        console.error("Failed to fetch support options:", error);
-        setOptionsError(
-          "Failed to load support options. Using default options."
-        );
-        // Fallback to default options if API fails
-        setSupportOptions(getDefaultOptions());
-      } finally {
-        setLoadingOptions(false);
+        if (!cancelled) {
+          setOptions(list.length > 0 ? list : DEFAULT_OPTIONS);
+          setUsingDefaults(list.length === 0);
+          setOptionsLoading(false);
+        }
+      } catch (err) {
+        console.error("Failed to load support options:", err);
+        if (!cancelled) {
+          setOptions(DEFAULT_OPTIONS);
+          setUsingDefaults(true);
+          setOptionsLoading(false);
+        }
       }
     };
-
-    if (token) {
-      fetchSupportOptions();
-    }
+    if (token) load();
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
-  // Calculate positions for option bubbles
-  const calculateOptionPositions = () => {
-    const radius = 100;
-    const angleStep = (2 * Math.PI) / supportOptions.length;
-    return supportOptions.map((option, index) => {
-      const angle = index * angleStep;
-      return {
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius,
-      };
-    });
-  };
 
-  const optionPositions = calculateOptionPositions();
+  /* ---------- socket for callAnswered ---------- */
+  const socketRef = useRef(null);
 
-  // Handle drag start
-  const handleDragStart = (e) => {
-    // Check if this is a touch event
-    const clientX = e.clientX ?? e.touches[0].clientX;
-    const clientY = e.clientY ?? e.touches[0].clientY;
-
-    setIsDragging(true);
-    setDragStart({
-      x: clientX - position.x,
-      y: clientY - position.y,
-    });
-
-    // Only prevent default for mouse events
-    if (e.clientX !== undefined) {
-      e.preventDefault();
-    }
-  };
-
-  // Handle dragging
-  const handleDrag = (e) => {
-    if (!isDragging) return;
-
-    // Check if this is a touch event
-    const clientX = e.clientX ?? e.touches[0].clientX;
-    const clientY = e.clientY ?? e.touches[0].clientY;
-
-    setPosition({
-      x: clientX - dragStart.x,
-      y: clientY - dragStart.y,
-    });
-
-    // Only prevent default for mouse events
-    if (e.clientX !== undefined) {
-      e.preventDefault();
-    }
-  };
-
-  // Handle drag end
-  const handleDragEnd = () => {
-    setIsDragging(false);
-    // Snap to edges if near screen boundaries
-    const bubble = bubbleRef.current;
-    if (bubble) {
-      const rect = bubble.getBoundingClientRect();
-      const windowWidth = window.innerWidth;
-      const windowHeight = window.innerHeight;
-
-      let newX = position.x;
-      let newY = position.y;
-
-      if (rect.left < 0) newX = 10;
-      if (rect.top < 0) newY = 10;
-      if (rect.right > windowWidth) newX = windowWidth - rect.width - 10;
-      if (rect.bottom > windowHeight) newY = windowHeight - rect.height - 10;
-
-      setPosition({ x: newX, y: newY });
-    }
-  };
-
-  // Handle bubble click
-  const handleBubbleClick = () => {
-    if (isDragging) return;
-    setIsActive(!isActive);
-  };
-
-  // Handle option selection
-  const handleOptionClick = (optionId, optionName) => {
-    setIsActive(false);
-    setIsProcessing(true);
-    setMessage("");
-    if (tableNumber && superClientId) {
-      console.log(
-        `Requesting ${
-          supportOptions.find((o) => o.id === optionId).label
-        } for table ${tableNumber}`
-      );
-      socket.emit("supportRequest", {
-        tableNumber,
-        requestType: optionId,
-        requestTypeName: optionName,
-      });
-
-      setTimeout(() => {
-        setIsProcessing(false);
-      }, 60000);
-    }
-  };
   useEffect(() => {
-    feather.replace(); // replaces all data-feather attributes with actual SVGs
-  }, [supportOptions]);
-  // Socket effects
-  useEffect(() => {
-    const socket = io(baseUrl, { auth: { token } });
+    if (!token || !tableNumber) return;
+
+    const socket = io(baseUrl, {
+      auth: { token },
+      transports: ["websocket"],
+    });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      // Optional: log for debugging
+      // console.log("support socket connected:", socket.id);
+    });
 
     socket.on("callAnswered", (data) => {
-      if (data.tableNumber === tableNumber) {
-        setMessage("Help is on the way!");
-        setIsProcessing(false);
-        setTimeout(() => setMessage(""), 5000);
+      if (data?.tableNumber === tableNumber) {
+        setMessage({ tone: "success", text: "Help is on the way!" });
+        setProcessing(null);
+        setTimeout(() => setMessage(null), 4000);
       }
     });
 
     return () => {
       socket.disconnect();
+      socketRef.current = null;
     };
   }, [token, tableNumber]);
 
+  /* ---------- drag ---------- */
+  const onPointerDown = (e) => {
+    const p = e.touches ? e.touches[0] : e;
+    dragState.current = {
+      dragging: true,
+      moved: false,
+      startX: p.clientX,
+      startY: p.clientY,
+      ox: position.x,
+      oy: position.y,
+    };
+    setIsDraggingUi(true);
+  };
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!dragState.current.dragging) return;
+      const p = e.touches ? e.touches[0] : e;
+      const dx = p.clientX - dragState.current.startX;
+      const dy = p.clientY - dragState.current.startY;
+      if (Math.abs(dx) + Math.abs(dy) > 4) dragState.current.moved = true;
+
+      const bubbleW = 56;
+      const bubbleH = 56;
+      const nx = Math.min(
+        Math.max(8, dragState.current.ox + dx),
+        window.innerWidth - bubbleW - 8,
+      );
+      const ny = Math.min(
+        Math.max(8, dragState.current.oy + dy),
+        window.innerHeight - bubbleH - 8,
+      );
+      setPosition({ x: nx, y: ny });
+    };
+
+    const onUp = () => {
+      if (!dragState.current.dragging) return;
+      dragState.current.dragging = false;
+      setIsDraggingUi(false);
+      // snap to nearest horizontal edge
+      if (bubbleRef.current) {
+        const rect = bubbleRef.current.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const snapX =
+          centerX < window.innerWidth / 2
+            ? 16
+            : window.innerWidth - rect.width - 16;
+        setPosition((prev) => ({ ...prev, x: snapX }));
+      }
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onUp);
+    };
+  }, []);
+
+  const onBubbleClick = () => {
+    if (dragState.current.moved) {
+      dragState.current.moved = false;
+      return;
+    }
+    setIsOpen(true);
+  };
+
+  /* ---------- emit support request ---------- */
+  const requestType = async (option) => {
+    if (!tableNumber) {
+      setMessage({ tone: "error", text: "Table not identified." });
+      setTimeout(() => setMessage(null), 3500);
+      return;
+    }
+    setProcessing(option.id);
+    setIsOpen(false);
+    setMessage({ tone: "info", text: "Sending request…" });
+
+    // The backend expects the type id when available; for defaults we send
+    // a name-only payload the server can still log.
+    const payload = {
+      tableNumber,
+      requestType: option.id,
+      requestTypeName: option.name,
+    };
+
+    try {
+      const socket = socketRef.current;
+      if (!socket || !socket.connected) {
+        // Wait briefly for the connection if it's still opening
+        await new Promise((resolve, reject) => {
+          if (!socket) return reject(new Error("No socket"));
+          const t = setTimeout(
+            () => reject(new Error("Socket connect timeout")),
+            3000,
+          );
+          socket.once("connect", () => {
+            clearTimeout(t);
+            resolve();
+          });
+          if (socket.connected) {
+            clearTimeout(t);
+            resolve();
+          }
+        });
+      }
+
+      socket.emit("supportRequest", payload);
+      setMessage({
+        tone: "success",
+        text: `${option.name} sent · waiter notified`,
+      });
+    } catch (err) {
+      console.error("Failed to send support request:", err);
+      setMessage({ tone: "error", text: "Could not send request." });
+    } finally {
+      setTimeout(() => {
+        setProcessing(null);
+        setMessage(null);
+      }, 6000);
+    }
+  };
+
   return (
     <>
-      {message && <MessageContainer>{message}</MessageContainer>}
-      {optionsError && (
-        <MessageContainer style={{ backgroundColor: "#ff9800" }}>
-          {optionsError}
-        </MessageContainer>
+      {message && (
+        <MessagePill $tone={message.tone} $brandColor={brandColor}>
+          {message.tone === "error" ? (
+            <AlertCircleIcon />
+          ) : message.tone === "success" ? (
+            <CheckCircleIcon />
+          ) : (
+            <BellIcon />
+          )}
+          {message.text}
+        </MessagePill>
       )}
-      <BubbleContainer
+
+      <BubbleWrap
         ref={bubbleRef}
         style={{ left: `${position.x}px`, top: `${position.y}px` }}
-        $isDragging={isDragging}
-        onMouseDown={handleDragStart}
-        onMouseMove={handleDrag}
-        onMouseUp={handleDragEnd}
-        onMouseLeave={handleDragEnd}
-        onTouchStart={handleDragStart}
-        onTouchMove={handleDrag}
-        onTouchEnd={handleDragEnd}
+        $isDragging={isDraggingUi}
+        onMouseDown={onPointerDown}
+        onTouchStart={onPointerDown}
       >
-        {isProcessing && <RippleEffect />}
-
-        <MainBubble
-          onClick={handleBubbleClick}
-          $isActive={isActive}
-          $isPulsing={isProcessing}
-          $isFloating={!isActive && !isProcessing && !isDragging}
+        <Bubble
+          type="button"
+          $brandColor={brandColor}
+          $processing={!!processing}
+          onClick={onBubbleClick}
+          aria-label="Request support"
         >
-          {loadingOptions ? (
-            <span style={{ fontSize: "24px" }}>...</span>
-          ) : (
-            <StyledSupportIcon $isActive={isActive} />
-          )}
-        </MainBubble>
+          <LifeBuoyIcon />
+        </Bubble>
+      </BubbleWrap>
 
-        {supportOptions.map((option, index) => (
-          <OptionBubble
-            key={option.id}
-            $isOpen={isActive}
-            $position={optionPositions[index]}
-            onClick={() => handleOptionClick(option.id, option.label)}
-          >
-            <i data-feather={option.icon} className="w-6 h-6 text-blue-500" />
-            {/* <i height={50} width={50} data-feather="alert-octagon"></i> */}
+      {isOpen && (
+        <>
+          <Backdrop onClick={() => setIsOpen(false)} />
+          <Sheet role="dialog" aria-label="Request support">
+            <SheetHandle />
+            <SheetHeader>
+              <div>
+                <SheetTitle>Need something?</SheetTitle>
+                <SheetSub>
+                  Tap an option and a waiter will come to you.
+                </SheetSub>
+              </div>
+              <CloseBtn
+                type="button"
+                onClick={() => setIsOpen(false)}
+                aria-label="Close"
+              >
+                <XIcon />
+              </CloseBtn>
+            </SheetHeader>
 
-            <OptionLabel>{option.label}</OptionLabel>
-          </OptionBubble>
-        ))}
-      </BubbleContainer>
+            <OptionList>
+              {optionsLoading ? (
+                <>
+                  <LoadingRow />
+                  <LoadingRow />
+                  <LoadingRow />
+                </>
+              ) : (
+                options.map((opt) => {
+                  const Icon = resolveIcon(opt.icon, opt.name);
+                  return (
+                    <Option
+                      key={opt.id}
+                      type="button"
+                      disabled={!!processing}
+                      onClick={() => requestType(opt)}
+                    >
+                      <OptionIcon $brandColor={brandColor}>
+                        <Icon />
+                      </OptionIcon>
+                      <OptionText>
+                        <OptionLabel>{opt.name}</OptionLabel>
+                        <OptionDesc>
+                          {processing === opt.id
+                            ? "Sending…"
+                            : "Notify the staff"}
+                        </OptionDesc>
+                      </OptionText>
+                    </Option>
+                  );
+                })
+              )}
+
+              {usingDefaults && !optionsLoading && (
+                <FallbackNote>
+                  Using default options — the café hasn't configured any yet.
+                </FallbackNote>
+              )}
+            </OptionList>
+          </Sheet>
+        </>
+      )}
     </>
   );
 };

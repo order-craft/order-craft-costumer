@@ -1,77 +1,113 @@
-// src/components/LanguageSelector.js
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
-import styled from "styled-components";
 import tw from "twin.macro";
+import styled from "styled-components";
 import { changeLanguage } from "features/languageSlice";
 
-const SelectContainer = styled.div`
-  ${tw`relative inline-block mr-6`}
-  
-`;
+import { ReactComponent as GlobeIcon } from "feather-icons/dist/icons/globe.svg";
+import { ReactComponent as ChevronDownIcon } from "feather-icons/dist/icons/chevron-down.svg";
 
-const Select = styled.select`
-  ${tw`appearance-none border border-primary-500 rounded px-4 py-2 bg-white text-primary-700`}
-  font-size: 1rem;
-  outline: none;
-  transition: all 0.2s ease-in-out;
-  cursor: pointer;
-  padding-right: 2.5rem; /* Space for the custom arrow */
-  width: 100%; /* Ensure it takes full width of container */
+const LANGUAGES = [
+  { value: "English", short: "EN", label: "English" },
+  { value: "French", short: "FR", label: "Français" },
+  { value: "Italian", short: "IT", label: "Italiano" },
+];
 
-  &:focus {
-    ${tw`border-primary-700`}
-  }
+const Wrap = styled.div`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  border-radius: 999px;
+  background: #f1f3f5;
+  color: #1a202c;
+  border: 1px solid transparent;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 
   &:hover {
-    ${tw`border-primary-600`}
+    background: #e9ecef;
   }
 
-  @media (max-width: 768px) {
-    ${tw`w-1/2`}/* 50% width on smaller screens */
+  &:focus-within {
+    border-color: #cbd5e0;
+    background: #fff;
   }
 
-  @media (max-width: 640px) {
-    ${tw`w-3/4`}/* 75% width on extra small screens */
-  }
-
-  @media (max-width: 480px) {
-    ${tw`w-full`}/* 100% width on very small screens */
+  svg {
+    flex-shrink: 0;
   }
 `;
 
-const Arrow = styled.div`
-  ${tw`absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none`}
+const GlobeWrap = styled.span`
+  display: inline-flex;
+  color: #4a5568;
   svg {
-    ${tw`w-4 h-4 text-primary-700`}
+    width: 14px;
+    height: 14px;
   }
+`;
+
+const ChevronWrap = styled.span`
+  display: inline-flex;
+  color: #4a5568;
+  pointer-events: none;
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+`;
+
+const ShortLabel = tw.span`text-xs font-black tracking-wide`;
+
+const Select = styled.select`
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none;
+  border: none;
+  background: transparent;
 `;
 
 const LanguageSelector = () => {
   const dispatch = useDispatch();
   const currentLanguage = useSelector((state) => state.language.language);
 
-  const handleLanguageChange = (event) => {
-    dispatch(changeLanguage(event.target.value));
+  const active =
+    LANGUAGES.find((l) => l.value === currentLanguage) || LANGUAGES[0];
+
+  const handleChange = (e) => {
+    dispatch(changeLanguage(e.target.value));
   };
 
   return (
-    <SelectContainer>
-      <Select value={currentLanguage} onChange={handleLanguageChange}>
-        <option value="English">English</option>
-        <option value="French">Français</option>
-        <option value="Italian">Italiano</option>
+    <Wrap aria-label="Language">
+      <GlobeWrap>
+        <GlobeIcon />
+      </GlobeWrap>
+      <ShortLabel>{active.short}</ShortLabel>
+      <ChevronWrap>
+        <ChevronDownIcon />
+      </ChevronWrap>
+
+      <Select
+        value={currentLanguage}
+        onChange={handleChange}
+        aria-label="Change language"
+      >
+        {LANGUAGES.map((l) => (
+          <option key={l.value} value={l.value}>
+            {l.label}
+          </option>
+        ))}
       </Select>
-      <Arrow>
-        <svg viewBox="0 0 20 20" fill="currentColor">
-          <path
-            fillRule="evenodd"
-            d="M10 3a1 1 0 011 1v12a1 1 0 01-2 0V4a1 1 0 011-1z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </Arrow>
-    </SelectContainer>
+    </Wrap>
   );
 };
 

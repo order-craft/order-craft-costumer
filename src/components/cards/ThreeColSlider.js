@@ -1,323 +1,414 @@
-import React, { useState, useEffect, useCallback } from "react";
-import Slider from "react-slick";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { motion, AnimatePresence } from "framer-motion";
 import tw from "twin.macro";
 import styled from "styled-components";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { SectionHeading } from "components/misc/Headings";
-import { PrimaryButton as PrimaryButtonBase } from "components/misc/Buttons";
-import { ReactComponent as StarIcon } from "feather-icons/dist/icons/star.svg";
-import { ReactComponent as ChevronLeftIcon } from "feather-icons/dist/icons/chevron-left.svg";
-import { ReactComponent as ChevronRightIcon } from "feather-icons/dist/icons/chevron-right.svg";
-import { useSelector, useDispatch } from "react-redux";
-import { removeItem, clearBasket } from "../../features/basketSlice";
-import { ReactComponent as ArrowRightIcon } from "feather-icons/dist/icons/arrow-right.svg";
-import { ReactComponent as ArrowLeftIcon } from "feather-icons/dist/icons/arrow-left.svg";
-import { baseUrl } from "helpers/BaseUrl";
 import axios from "axios";
-import Loading from "helpers/Loading";
+import { baseUrl } from "helpers/BaseUrl";
 import { GetToken } from "helpers/GetToken";
+import Loading from "helpers/Loading";
 import AnimationRevealPage from "helpers/AnimationRevealPage";
 import translations from "app/language";
 import socket from "helpers/soket/socket";
+import { removeItem, clearBasket } from "../../features/basketSlice";
 
-const Container = styled.div`
-  ${tw`relative`}
-  width: 100%;
+import { ReactComponent as ChevronLeftIcon } from "feather-icons/dist/icons/chevron-left.svg";
+import { ReactComponent as PlusIcon } from "feather-icons/dist/icons/plus.svg";
+import { ReactComponent as MinusIcon } from "feather-icons/dist/icons/minus.svg";
+import { ReactComponent as TrashIcon } from "feather-icons/dist/icons/trash-2.svg";
+import { ReactComponent as ArrowRightIcon } from "feather-icons/dist/icons/arrow-right.svg";
+import { ReactComponent as MessageSquareIcon } from "feather-icons/dist/icons/message-square.svg";
+import { ReactComponent as ShoppingBagIcon } from "feather-icons/dist/icons/shopping-bag.svg";
+
+/* ---------- layout ---------- */
+const Page = tw.div`min-h-screen bg-gray-100 pb-32`;
+const StickyHeader = tw.div`sticky top-0 z-30 bg-white border-b border-gray-200`;
+const HeaderInner = tw.div`max-w-2xl mx-auto px-4 py-3 flex items-center gap-3`;
+const BackButton = tw.button`flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors text-gray-700 flex-shrink-0`;
+const HeaderText = tw.div`min-w-0 flex-1`;
+const HeaderTitle = tw.h1`text-base sm:text-lg font-black text-gray-900 truncate`;
+const HeaderSub = tw.div`text-xs text-gray-500 truncate`;
+
+const Content = tw.div`max-w-2xl mx-auto px-4 pt-4`;
+
+/* ---------- item row ---------- */
+const Row = styled(motion.div)`
+  ${tw`bg-white rounded-2xl p-3 flex items-center gap-3`}
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 1px solid #eef0f3;
 `;
 
-const Content = styled.div`
-  ${tw`max-w-screen-xl mx-auto py-16 lg:py-20`}
-  width: 100%;
-`;
-
-const HeadingWithControl = tw.div`flex flex-col items-center sm:items-stretch sm:flex-row justify-between`;
-const Heading = tw(SectionHeading)`mt-4`;
-const Controls = tw.div`flex items-center`;
-const ControlButton = styled(PrimaryButtonBase)`
-  ${tw`mt-4 sm:mt-0 first:ml-0 ml-6 rounded-full p-2`}
-  svg {
-    ${tw`w-6 h-6`}
-  }
-`;
-const PrevButton = tw(ControlButton)``;
-const NextButton = tw(ControlButton)``;
-
-const CardSlider = styled(Slider)`
-  ${tw`mt-16`}
-  width: 100%;
-  .slick-track {
-    ${tw`flex`}
-  }
-  .slick-slide {
-    ${tw`h-auto flex justify-center mb-1`}
-  }
-  @media (max-width: 768px) {
-    ${tw`w-full`}
-    .slick-slide {
-      ${tw`w-full`}
-    }
-  }
-`;
-const Card = styled.div`
-  ${tw`h-full flex! flex-col sm:border sm:max-w-sm sm:rounded-tl-4xl sm:rounded-br-5xl relative focus:outline-none border max-w-sm rounded-tl-4xl rounded-br-4xl`}
-  width: 100%;
-`;
-const CardImage = styled.div((props) => [
-  `background-image: url("${props.imageSrc}");`,
-  tw`w-full min-w-[270px] h-56 sm:h-64 bg-cover bg-center rounded sm:rounded-none rounded-tl-4xl sm:rounded-tl-4xl`,
-]);
-
-const TextInfo = tw.div`py-6 px-4 sm:px-10 sm:py-6 w-full max-w-xs `;
-const TitleReviewContainer = styled.div`
-  ${tw`flex flex-col sm:flex-row sm:justify-between sm:items-center w-full`}
-`;
-const Title = tw.h5`text-xl font-bold`;
-
-const RatingsInfo = styled.div`
-  ${tw`flex items-center sm:ml-4 mt-2 sm:mt-0`}
-  svg {
-    ${tw`w-6 h-6 text-yellow-500 fill-current`}
-  }
-`;
-const Rating = tw.span`ml-2 font-bold`;
-
-const Description = tw.p`text-sm leading-loose mt-2 sm:mt-4 w-full`;
-
-const SecondaryInfoContainer = styled.div`
-  ${tw`flex flex-col sm:flex-row mt-2 sm:mt-4 w-full`}
-  justify-content: space-between;
-`;
-const IconWithText = styled.div`
-  ${tw`flex items-center mr-6 my-2 sm:my-0`}
-  ${tw`sm:justify-end`}
-  @media (max-width: 768px) {
-    ${tw`w-full justify-end`}
-  }
-`;
-
-const PrimaryButton = tw(
-  PrimaryButtonBase
-)`mt-auto sm:text-lg rounded-none w-full rounded bg-red-700 sm:rounded-none sm:rounded-br-4xl rounded-br-4xl py-3 sm:py-6`;
-
-const QuantityContainer = styled.div`
-  ${tw`absolute flex items-center bg-white border border-gray-300 rounded-full`}
-`;
-
-const QuantityButton = styled.button`
-  ${tw`text-lg px-2 py-1`}
-  border: none;
-  background: none;
-  cursor: pointer;
-`;
-
-const Quantity = styled.p`
-  ${tw`text-lg font-semibold text-gray-800 px-2`}
-`;
-
-const MessageContainer = tw.div`text-center py-16`;
-const Message = tw.p`text-lg`;
-const MenuLink = tw(Link)`text-primary-500`;
-
-const PlaceOrderButton = styled(PrimaryButtonBase)`
-  ${tw`mr-8 mt-8 flex items-center`}
-  right: 0;
-  bottom: 0;
-  position: absolute;
-  svg {
-    ${tw`ml-2 w-6 h-6`}
-  }
-`;
-
-const BackToMenuButton = styled(PrimaryButtonBase)`
-  ${tw`ml-8 mt-8 mb-4 flex items-center`}
-  left: 0;
-  top: 0;
-  position: absolute;
-  svg {
-    ${tw`mr-2 w-6 h-6`}
-  }
-`;
-
-const TotalPriceContainer = styled.div`
-  ${tw`flex justify-end items-center mt-8 mr-8`}
+const Thumb = styled.div`
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: ${({ $color }) => $color || "#eef0f3"};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  color: #fff;
   font-size: 1.25rem;
-  font-weight: bold;
-`;
-const CommentContainer = styled.div`
-  ${tw`mt-4 flex flex-col w-full`}
+  flex-shrink: 0;
 `;
 
-const CommentLabel = styled.label`
-  ${tw`text-lg font-semibold mb-2`}
+const ThumbImg = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 `;
 
-const CommentTextarea = styled.textarea`
-  ${tw`w-full p-3 border rounded-lg text-sm leading-relaxed`}
-  min-height: 100px;
+const Info = tw.div`flex-1 min-w-0`;
+
+const Name = styled.div`
+  ${tw`text-sm font-bold text-gray-900 leading-tight`}
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 `;
-const CardPrice = tw.p`mt-4 text-xl font-bold`;
 
-const DiscountedPrice = tw.span`text-green-600 font-bold`;
-const OriginalPrice = tw.span`line-through text-gray-500 mr-2`;
-const DiscountBadge = tw.span`ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded`;
+const PriceLine = tw.div`flex items-center gap-2 mt-1 flex-wrap`;
+const UnitPrice = styled.span`
+  ${tw`text-xs font-bold`}
+  color: ${({ $brandColor }) => $brandColor || "#8B5A2B"};
+`;
+const Strike = tw.span`text-xs text-gray-400 line-through`;
 
-export default () => {
-  const [sliderRef, setSliderRef] = useState(null);
+const Controls = tw.div`flex flex-col items-end gap-2 flex-shrink-0`;
+
+const Stepper = styled.div`
+  ${tw`flex items-center rounded-full`}
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  overflow: hidden;
+`;
+
+const StepBtn = styled.button`
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: ${({ $brandColor, disabled }) =>
+    disabled ? "#cbd5e0" : $brandColor || "#8B5A2B"};
+  cursor: ${({ disabled }) => (disabled ? "not-allowed" : "pointer")};
+  transition: background-color 0.12s ease;
+
+  &:hover {
+    background: ${({ disabled }) =>
+      disabled ? "transparent" : "rgba(0, 0, 0, 0.04)"};
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+`;
+
+const StepValue = styled.span`
+  ${tw`text-sm font-bold text-gray-900 px-2 text-center`}
+  min-width: 24px;
+`;
+const RemoveBtn = styled.button`
+  ${tw`flex items-center justify-center w-8 h-8 rounded-full transition-colors`}
+
+  border: none;
+  background: transparent;
+  color: #a0aec0;
+  cursor: pointer;
+
+  &:hover {
+    background: #fff5f5;
+    color: #e53e3e;
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+`;
+
+/* ---------- comment ---------- */
+const SectionLabel = tw.div`text-xs font-black uppercase text-gray-500 tracking-wider mt-6 mb-2`;
+const CommentCard = tw.div`bg-white rounded-2xl p-3 border border-gray-200`;
+const CommentIcon = tw.div`flex items-center gap-2 text-gray-500 text-xs font-bold mb-2`;
+const Textarea = styled.textarea`
+  ${tw`w-full text-sm text-gray-900 bg-transparent outline-none resize-none`}
+  border: none;
+  min-height: 68px;
+  line-height: 1.5;
+
+  &::placeholder {
+    color: #a0aec0;
+  }
+`;
+
+/* ---------- empty ---------- */
+const EmptyWrap = tw.div`max-w-2xl mx-auto px-4 py-16 text-center`;
+const EmptyIcon = styled.div`
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: #a0aec0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+`;
+const EmptyTitle = tw.div`font-black text-gray-800 text-base mb-1`;
+const EmptyBody = tw.div`text-sm text-gray-500 mb-6`;
+const EmptyCta = styled(Link)`
+  ${tw`inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm font-bold`}
+  background: ${({ $brandColor }) => $brandColor || "#8B5A2B"};
+  color: #fff;
+  text-decoration: none;
+
+  &:active {
+    transform: scale(0.98);
+  }
+`;
+
+/* ---------- sticky bottom bar ---------- */
+const BottomBar = styled.div`
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 40;
+  background: #fff;
+  border: 1px solid #eef0f3;
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+
+  @media (min-width: 1024px) {
+    max-width: 640px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+  }
+`;
+
+const TotalBlock = tw.div`flex flex-col min-w-0`;
+const TotalLabel = styled.div`
+  ${tw`font-black uppercase tracking-wider text-gray-500`}
+  font-size: 10px;
+`;
+const TotalValue = styled.div`
+  ${tw`text-lg font-black leading-tight`}
+  color: ${({ $brandColor }) => $brandColor || "#8B5A2B"};
+`;
+
+const PrimaryButton = styled.button`
+  ${tw`flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold ml-auto whitespace-nowrap`}
+  background: ${({ $brandColor, disabled }) =>
+    disabled ? "#cbd5e0" : $brandColor || "#8B5A2B"};
+  color: #fff;
+  border: none;
+  cursor: ${({ disabled }) => (disabled ? "not-allowed" : "pointer")};
+  transition: transform 0.12s ease;
+
+  &:active {
+    transform: ${({ disabled }) => (disabled ? "none" : "scale(0.98)")};
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+/* ---------- deterministic fallback color for missing images ---------- */
+const placeholderPalette = [
+  "#8B5A2B",
+  "#C05621",
+  "#DD6B20",
+  "#B7791F",
+  "#2C7A7B",
+  "#9F7AEA",
+];
+const placeholderColorFor = (id) => {
+  let h = 0;
+  const s = String(id || "");
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return placeholderPalette[Math.abs(h) % placeholderPalette.length];
+};
+
+/* ---------- main ---------- */
+export default function OrderScreen() {
   const [order, setOrder] = useState(null);
   const [updatedQuantities, setUpdatedQuantities] = useState({});
-  const items = useSelector((state) => state.basket.items);
-  const dispatch = useDispatch();
-  const { orderId } = useParams();
-  const navigate = useNavigate();
+  const [comment, setComment] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { orderId } = useParams();
   const token = GetToken();
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [comment, setComment] = useState(order?.comment || "");
+
+  const t = useSelector((state) => state.language.language);
+  const Language = translations[t];
+  const brandColor = useSelector((state) => state.table.brandColor);
+  const items = useSelector((state) => state.basket.items);
+
+  /* ---------- fetch (edit mode) ---------- */
   const fetchOrder = useCallback(async () => {
     try {
       const response = await axios.get(`${baseUrl}/order/${orderId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.status === 200) {
         setOrder(response.data);
-        setComment(response.data.comment);
-        console.log(response.data);
-
-        setIsLoading(false);
+        setComment(response.data.comment || "");
       }
     } catch (error) {
       console.error("Error fetching order:", error);
+    } finally {
       setIsLoading(false);
     }
   }, [orderId, token]);
 
   useEffect(() => {
-    if (orderId) {
-      fetchOrder();
-    } else {
-      setIsLoading(false);
-    }
+    if (orderId) fetchOrder();
+    else setIsLoading(false);
   }, [orderId, fetchOrder]);
 
-  const handleRemoveFromBasket = async (item) => {
-    const isConfirmed = window.confirm(
-      "Are you sure you want to remove this item?"
+  /* ---------- derived rows ---------- */
+  const displayRows = useMemo(() => {
+    if (orderId) {
+      return (order?.products || []).map((p) => ({
+        product: p.product,
+        quantity: p.quantity,
+      }));
+    }
+    return items.map((i) => ({
+      product: i.product,
+      quantity: i.quantity,
+    }));
+  }, [orderId, order, items]);
+
+  const getQty = (product) =>
+    updatedQuantities[product._id] ??
+    displayRows.find((r) => r.product._id === product._id)?.quantity ??
+    1;
+
+  const totalPrice = useMemo(() => {
+    return displayRows.reduce((sum, row) => {
+      const p = row.product || {};
+      const raw = Number(p.price) || 0;
+      const disc = Number(p.discountPercentage) || 0;
+      const unit = disc > 0 ? raw * (1 - disc / 100) : raw;
+      const qty = updatedQuantities[p._id] ?? row.quantity;
+      return sum + unit * qty;
+    }, 0);
+  }, [displayRows, updatedQuantities]);
+
+  const totalItems = displayRows.reduce((sum, row) => {
+    const qty = updatedQuantities[row.product._id] ?? row.quantity;
+    return sum + qty;
+  }, 0);
+
+  /* ---------- quantity ---------- */
+  const handleIncrease = (product) => {
+    setUpdatedQuantities((prev) => ({
+      ...prev,
+      [product._id]: getQty(product) + 1,
+    }));
+  };
+
+  const handleDecrease = (product) => {
+    const current = getQty(product);
+    if (current <= 1) return; // clamp at 1
+    setUpdatedQuantities((prev) => ({
+      ...prev,
+      [product._id]: current - 1,
+    }));
+  };
+
+  /* ---------- remove ---------- */
+  const handleRemove = async (row) => {
+    const confirmed = window.confirm(
+      Language.removeConfirm || "Are you sure you want to remove this?",
     );
-    if (!isConfirmed) return;
+    if (!confirmed) return;
 
     if (orderId) {
       setIsLoading(true);
-      // Handle removal from order
       const updatedProducts = order.products.filter(
-        (product) => product.product._id !== item.product._id
+        (p) => p.product._id !== row.product._id,
       );
-      const updatedOrder = {
-        ...order,
-        products: updatedProducts,
-        comment: comment,
-      };
-
       try {
         const response = await axios.put(
           `${baseUrl}/order/${orderId}`,
-          updatedOrder,
+          { ...order, products: updatedProducts, comment },
           {
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-          }
+          },
         );
-
         if (response.status === 200) {
           setOrder(response.data);
-          fetchOrder();
-          setIsLoading(false);
-        } else {
-          alert("Failed to remove item from order");
-          setIsLoading(false);
+          await fetchOrder();
         }
       } catch (error) {
-        console.error("Error removing item from order:", error);
+        console.error("Error removing item:", error);
         alert("Error removing item from order");
+      } finally {
         setIsLoading(false);
       }
     } else {
-      // Handle removal from basket slice
-      dispatch(removeItem(item.product));
+      dispatch(removeItem(row.product));
     }
   };
 
-  const handleIncreaseQuantity = (item) => {
-    setUpdatedQuantities((prevQuantities) => ({
-      ...prevQuantities,
-      [item.product._id]:
-        (prevQuantities[item.product._id] || item.quantity) + 1,
-    }));
-  };
-
-  const handleDecreaseQuantity = (item) => {
-    setUpdatedQuantities((prevQuantities) => ({
-      ...prevQuantities,
-      [item.product._id]: Math.max(
-        (prevQuantities[item.product._id] || item.quantity) - 1,
-        1
-      ),
-    }));
-  };
-
+  /* ---------- submit ---------- */
   const handlePlaceOrder = async () => {
+    if (displayRows.length === 0) return;
     setIsLoading(true);
 
-    const products = !orderId
-      ? items.map((item) => ({
-          product: item.product._id,
-          quantity: updatedQuantities[item.product._id] || item.quantity,
-        }))
-      : order?.products.map((product) => ({
-          product: product.product._id,
-          quantity: updatedQuantities[product.product._id] || product.quantity,
-        }));
+    const products = displayRows.map((row) => ({
+      product: row.product._id,
+      quantity: updatedQuantities[row.product._id] ?? row.quantity,
+    }));
     const orderType = "dine-in";
     const orderData = { products, comment, orderType };
+
     try {
       let response;
-      let message;
       if (orderId) {
-        // Update existing order
         response = await axios.put(`${baseUrl}/order/${orderId}`, orderData, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
         });
-        message = "Order updated successfully";
       } else {
-        // Create new order
         response = await axios.post(`${baseUrl}/order`, orderData, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
         });
-        message = "Order placed successfully";
       }
 
       if (response.status === 200 || response.status === 201) {
-        const result = response.data;
-        console.log(message, result);
-
-        // Emit socket event
-        socket.emit("newOrder", { orderId: orderId || result._id });
-
-        if (!orderId) {
-          dispatch(clearBasket());
-        }
-        navigate("/orders"); // Navigate to /orders
+        socket.emit("newOrder", { orderId: orderId || response.data._id });
+        if (!orderId) dispatch(clearBasket());
+        navigate("/orders");
       } else {
-        console.error("Failed to place order:", response.statusText);
         alert("Failed to place order");
       }
     } catch (error) {
@@ -328,186 +419,195 @@ export default () => {
     }
   };
 
-  const t = useSelector((state) => state.language.language);
-  const Language = translations[t];
+  /* ---------- render ---------- */
+  if (isLoading) return <Loading />;
 
-  const displayItems = orderId ? order?.products : items;
-
-  const determineSlidesToShow = () => {
-    const isMobile = window.innerWidth < 768;
-    if (isMobile) return 1;
-    if (displayItems?.length === 1) return 1;
-    if (displayItems?.length === 2) return 2;
-    return 3;
-  };
-
-  const sliderSettings = {
-    arrows: false,
-    infinite: false,
-    slidesToShow: determineSlidesToShow(),
-    afterChange: (current) => setCurrentSlide(current),
-    nextArrow: (
-      <NextButton disabled={currentSlide === displayItems?.length - 1}>
-        <ChevronRightIcon />
-      </NextButton>
-    ),
-    prevArrow: (
-      <PrevButton disabled={currentSlide === 0}>
-        <ChevronLeftIcon />
-      </PrevButton>
-    ),
-    responsive: [
-      {
-        breakpoint: 1280,
-        settings: {
-          slidesToShow:
-            determineSlidesToShow() < 3 ? determineSlidesToShow() : 2,
-        },
-      },
-      {
-        breakpoint: 768,
-        settings: {
-          slidesToShow: 1,
-        },
-      },
-    ],
-  };
-
-  const totalPrice = orderId
-    ? Number(order?.totalPrice)
-    : items.reduce((total, item) => {
-        const quantity = updatedQuantities[item.product._id] || item.quantity;
-        const price =
-          item.product.discountPercentage > 0
-            ? item.product.price * (1 - item.product.discountPercentage / 100)
-            : item.product.price;
-        return total + price * quantity;
-      }, 0);
-
-  if (!displayItems || displayItems.length === 0) {
+  if (displayRows.length === 0) {
     return (
-      <MessageContainer>
-        <Message>{Language.pleaseSelectItems}</Message>
-        <MenuLink to="/menu">{Language.goToMenu}</MenuLink>
-      </MessageContainer>
+      <AnimationRevealPage disabled>
+        <Page>
+          <StickyHeader>
+            <HeaderInner>
+              <BackButton
+                type="button"
+                onClick={() => navigate("/menu")}
+                aria-label="Back"
+              >
+                <ChevronLeftIcon tw="w-5 h-5" />
+              </BackButton>
+              <HeaderText>
+                <HeaderTitle>{Language.myOrder || "My order"}</HeaderTitle>
+              </HeaderText>
+            </HeaderInner>
+          </StickyHeader>
+
+          <EmptyWrap>
+            <EmptyIcon>
+              <ShoppingBagIcon tw="w-8 h-8" />
+            </EmptyIcon>
+            <EmptyTitle>
+              {Language.pleaseSelectItems || "Your basket is empty"}
+            </EmptyTitle>
+            <EmptyBody>
+              {Language.pleaseSelectItemsHint ||
+                "Pick something from the menu to get started."}
+            </EmptyBody>
+            <EmptyCta to="/menu" $brandColor={brandColor}>
+              {Language.goToMenu || "Go to menu"}
+            </EmptyCta>
+          </EmptyWrap>
+        </Page>
+      </AnimationRevealPage>
     );
   }
 
-  if (isLoading) {
-    return <Loading />;
-  }
-
   return (
-    <AnimationRevealPage>
-      <Container>
+    <AnimationRevealPage disabled>
+      <Page>
+        {/* ---------- Sticky header ---------- */}
+        <StickyHeader>
+          <HeaderInner>
+            <BackButton
+              type="button"
+              onClick={() => navigate(orderId ? "/orders" : "/menu")}
+              aria-label={Language.backToMenu || "Back"}
+            >
+              <ChevronLeftIcon tw="w-5 h-5" />
+            </BackButton>
+            <HeaderText>
+              <HeaderTitle>
+                {orderId
+                  ? Language.myOrder || "My order"
+                  : Language.myOrder || "My order"}
+              </HeaderTitle>
+              <HeaderSub>
+                {totalItems}{" "}
+                {totalItems === 1
+                  ? Language.item || "item"
+                  : Language.items || "items"}
+              </HeaderSub>
+            </HeaderText>
+          </HeaderInner>
+        </StickyHeader>
+
+        {/* ---------- Content ---------- */}
         <Content>
-          <HeadingWithControl>
-            <Heading>{Language.myOrder}</Heading>
-            <Controls>
-              <PrevButton
-                onClick={sliderRef?.slickPrev}
-                disabled={currentSlide === 0}
-              >
-                <ChevronLeftIcon />
-              </PrevButton>
-              <NextButton
-                onClick={sliderRef?.slickNext}
-                disabled={currentSlide === displayItems.length - 1}
-              >
-                <ChevronRightIcon />
-              </NextButton>
-            </Controls>
-          </HeadingWithControl>
-          <CardSlider ref={setSliderRef} {...sliderSettings}>
-            {displayItems?.map((item, index) => (
-              <Card key={index}>
-                <CardImage imageSrc={item.product.img} />
-                <QuantityContainer style={{ top: 10, left: 10 }}>
-                  <QuantityButton onClick={() => handleDecreaseQuantity(item)}>
-                    -
-                  </QuantityButton>
-                  <Quantity>
-                    {updatedQuantities[item.product._id] || item.quantity}
-                  </Quantity>
-                  <QuantityButton onClick={() => handleIncreaseQuantity(item)}>
-                    +
-                  </QuantityButton>
-                </QuantityContainer>
-                <TextInfo>
-                  <TitleReviewContainer>
-                    <Title>{item.product.name}</Title>
-                    <RatingsInfo>
-                      <StarIcon />
-                      <Rating>
-                        {Math.floor(item.product.rate)} ({item.product.raters})
-                      </Rating>
-                    </RatingsInfo>
-                  </TitleReviewContainer>
-                  <SecondaryInfoContainer>
-                    <Description>{item.product.description}</Description>
-                    <IconWithText>
-                      {item.product.discountPercentage > 0 ? (
-                        <>
-                          {Language.price}:{" "}
-                          <OriginalPrice>
-                            {item.product.price} TND
-                          </OriginalPrice>
-                          <br />
-                          <DiscountedPrice>
-                            {(
-                              item.product.price *
-                              (1 - item.product.discountPercentage / 100)
-                            ).toFixed(2)}{" "}
-                            TND
-                          </DiscountedPrice>{" "}
-                          <br />
-                          <DiscountBadge>
-                            -{item.product.discountPercentage}%
-                          </DiscountBadge>{" "}
-                        </>
+          <div tw="flex flex-col gap-3">
+            <AnimatePresence>
+              {displayRows.map((row) => {
+                const product = row.product || {};
+                const qty = getQty(product);
+                const raw = Number(product.price) || 0;
+                const disc = Number(product.discountPercentage) || 0;
+                const unit = disc > 0 ? raw * (1 - disc / 100) : raw;
+                const placeholder = placeholderColorFor(product._id);
+
+                return (
+                  <Row
+                    key={product._id}
+                    layout
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -12 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Thumb $color={placeholder}>
+                      {product.img ? (
+                        <ThumbImg src={product.img} alt={product.name} />
                       ) : (
-                        <CardPrice>
-                          {Language.price}: {item.product.price} TND
-                        </CardPrice>
+                        (product.name || "?").charAt(0).toUpperCase()
                       )}
-                    </IconWithText>
-                  </SecondaryInfoContainer>
-                </TextInfo>
-                <PrimaryButton onClick={() => handleRemoveFromBasket(item)}>
-                  {Language.remove}
-                </PrimaryButton>
-              </Card>
-            ))}
-          </CardSlider>
-          <CommentContainer>
-            <CommentLabel htmlFor="orderComment">
-              {Language.comment || "Comment"}
-            </CommentLabel>
-            <CommentTextarea
+                    </Thumb>
+
+                    <Info>
+                      <Name>{product.name}</Name>
+                      <PriceLine>
+                        <UnitPrice $brandColor={brandColor}>
+                          {unit.toFixed(2)} TND
+                        </UnitPrice>
+                        {disc > 0 && <Strike>{raw.toFixed(2)}</Strike>}
+                      </PriceLine>
+                    </Info>
+
+                    <Controls>
+                      <Stepper>
+                        <StepBtn
+                          type="button"
+                          $brandColor={brandColor}
+                          disabled={qty <= 1}
+                          onClick={() => handleDecrease(product)}
+                          aria-label="Decrease"
+                        >
+                          <MinusIcon />
+                        </StepBtn>
+                        <StepValue>{qty}</StepValue>
+                        <StepBtn
+                          type="button"
+                          $brandColor={brandColor}
+                          onClick={() => handleIncrease(product)}
+                          aria-label="Increase"
+                        >
+                          <PlusIcon />
+                        </StepBtn>
+                      </Stepper>
+
+                      <RemoveBtn
+                        type="button"
+                        onClick={() => handleRemove(row)}
+                        aria-label={Language.remove || "Remove item"}
+                      >
+                        <TrashIcon />
+                      </RemoveBtn>
+                    </Controls>
+                  </Row>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+
+          {/* ---------- Comment ---------- */}
+          <SectionLabel>{Language.comment || "Comment"}</SectionLabel>
+          <CommentCard>
+            <CommentIcon>
+              <MessageSquareIcon tw="w-4 h-4" />
+              <span>
+                {Language.addYourComment || "Add a note for the kitchen"}
+              </span>
+            </CommentIcon>
+            <Textarea
               id="orderComment"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder={Language.addYourComment || "Add Your Comment"}
+              placeholder={
+                Language.addYourComment ||
+                "Any allergies, special requests, etc."
+              }
+              rows={3}
             />
-          </CommentContainer>
-
-          <PlaceOrderButton onClick={handlePlaceOrder}>
-            {orderId ? Language.updateOrder : Language.placeOrder}
-            <ArrowRightIcon />
-          </PlaceOrderButton>
-          <TotalPriceContainer>
-            {Language.totalPrice}: {totalPrice.toFixed(2)} TND
-          </TotalPriceContainer>
-          <PlaceOrderButton onClick={handlePlaceOrder}>
-            {orderId ? Language.updateOrder : Language.placeOrder}
-            <ArrowRightIcon />
-          </PlaceOrderButton>
-          <BackToMenuButton as={Link} to="/menu">
-            <ArrowLeftIcon />
-            {Language.backToMenu}
-          </BackToMenuButton>
+          </CommentCard>
         </Content>
-      </Container>
+
+        {/* ---------- Sticky bottom bar ---------- */}
+        <BottomBar>
+          <TotalBlock>
+            <TotalLabel>{Language.totalPrice || "Total"}</TotalLabel>
+            <TotalValue $brandColor={brandColor}>
+              {totalPrice.toFixed(2)} TND
+            </TotalValue>
+          </TotalBlock>
+
+          <PrimaryButton
+            type="button"
+            $brandColor={brandColor}
+            onClick={handlePlaceOrder}
+          >
+            {orderId
+              ? Language.updateOrder || "Update order"
+              : Language.placeOrder || "Place order"}
+            <ArrowRightIcon />
+          </PrimaryButton>
+        </BottomBar>
+      </Page>
     </AnimationRevealPage>
   );
-};
+}

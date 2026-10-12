@@ -3,6 +3,8 @@ import { configureStore } from "@reduxjs/toolkit";
 import languageReducer from "../features/languageSlice";
 import basketReducer from "../features/basketSlice";
 import tableReducer from "../features/TableSlice";
+import ordersReducer from "../features/ordersSlice";
+
 import localStorageMiddleware from "../middleware/localStorageMiddleware";
 import { loadState } from "../utils/loadState";
 
@@ -13,6 +15,7 @@ export const store = configureStore({
     language: languageReducer,
     basket: basketReducer,
     table: tableReducer,
+    orders: ordersReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(localStorageMiddleware),
