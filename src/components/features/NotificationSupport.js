@@ -394,6 +394,17 @@ const NotifSupport = () => {
       }
     });
 
+    socket.on("supportRequestDeclined", (data) => {
+      if (data?.tableNumber === tableNumber) {
+        setMessage({
+          tone: "error",
+          text: "Staff can't take this right now — please try again.",
+        });
+        setProcessing(null);
+        setTimeout(() => setMessage(null), 4000);
+      }
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;

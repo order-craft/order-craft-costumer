@@ -8,7 +8,14 @@
     />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#ffffff" />
+    <style>
+      /* color-scheme alone doesn't stop some browsers (especially in
+         private/incognito) from painting the native canvas dark wherever
+         no element covers it — an explicit background closes that gap. */
+      html, body { background-color: #ffffff; }
+    </style>
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <!--
       manifest.json provides metadata used when your web app is installed on a
