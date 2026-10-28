@@ -323,6 +323,11 @@ const Login = () => {
               statusFlowEnabled:
                 statusFlowEnabled === undefined ? true : statusFlowEnabled,
               brandColor: serverBrand || "#8B5A2B",
+              customerEditWindow: response.data.customerEditWindow || {
+                enabled: true,
+                minutes: 3,
+                from: "placed",
+              },
             }),
           );
           TokenManager.setToken(newToken);

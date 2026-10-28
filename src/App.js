@@ -6,7 +6,7 @@ import GlobalStyles from "styles/GlobalStyles";
 import styled from "styled-components";
 import { baseUrl } from "helpers/BaseUrl";
 import { GetToken } from "helpers/GetToken";
-import { setStatusFlowEnabled, setBrandColor } from "features/TableSlice";
+import { setStatusFlowEnabled, setBrandColor, setCustomerEditWindow } from "features/TableSlice";
 import { css } from "styled-components/macro"; //eslint-disable-line
 import {
   BrowserRouter as Router,
@@ -47,12 +47,16 @@ export default function App() {
     if (!token) return;
 
     const socket = io(baseUrl, { auth: { token } });
+
     socket.on("tenantConfigChanged", (cfg) => {
       if (typeof cfg?.statusFlowEnabled === "boolean") {
         dispatch(setStatusFlowEnabled(cfg.statusFlowEnabled));
       }
       if (typeof cfg?.brandColor === "string") {
         dispatch(setBrandColor(cfg.brandColor));
+      }
+      if (cfg?.customerEditWindow) {
+        dispatch(setCustomerEditWindow(cfg.customerEditWindow));
       }
     });
 

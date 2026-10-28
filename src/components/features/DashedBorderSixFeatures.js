@@ -31,6 +31,9 @@ import { ReactComponent as PencilIcon } from "feather-icons/dist/icons/edit-2.sv
 import { ReactComponent as TrashIcon } from "feather-icons/dist/icons/trash-2.svg";
 import { ReactComponent as DollarIcon } from "feather-icons/dist/icons/dollar-sign.svg";
 import { ReactComponent as ShoppingBagIcon } from "feather-icons/dist/icons/shopping-bag.svg";
+import { ReactComponent as InboxIcon } from "feather-icons/dist/icons/inbox.svg";
+import { ReactComponent as TruckIcon } from "feather-icons/dist/icons/truck.svg";
+import { ReactComponent as LockIcon } from "feather-icons/dist/icons/lock.svg";
 
 /* ---------- layout ---------- */
 const Page = tw.div`min-h-screen bg-gray-100 pb-24`;
@@ -88,10 +91,16 @@ const StatusChip = styled.div`
   color: #fff;
   background: ${({ $status }) => {
     switch ($status) {
+      case "placed":
+        return "#0d6efd";
       case "pending":
         return "#d69e2e";
       case "preparing":
         return "#3182ce";
+      case "ready":
+        return "#059669";
+      case "delivered":
+        return "#10b981";
       case "completed":
         return "#38a169";
       case "cancelled":
@@ -115,10 +124,16 @@ const StatusPill = styled.span`
   ${tw`text-xs font-bold px-2 py-1 rounded-full`}
   background: ${({ $status }) => {
     switch ($status) {
+      case "placed":
+        return "#cfe2ff";
       case "pending":
         return "#fef3c7";
       case "preparing":
         return "#dbeafe";
+      case "ready":
+        return "#d1fae5";
+      case "delivered":
+        return "#a7f3d0";
       case "completed":
         return "#dcfce7";
       case "cancelled":
@@ -129,10 +144,16 @@ const StatusPill = styled.span`
   }};
   color: ${({ $status }) => {
     switch ($status) {
+      case "placed":
+        return "#084298";
       case "pending":
         return "#92400e";
       case "preparing":
         return "#1e40af";
+      case "ready":
+        return "#065f46";
+      case "delivered":
+        return "#064e3b";
       case "completed":
         return "#166534";
       case "cancelled":
@@ -169,6 +190,40 @@ const ChevronBox = styled.div`
     width: 18px;
     height: 18px;
   }
+`;
+
+/* ---------- edit window banner ---------- */
+const EditWindowBanner = styled.div`
+  margin: 0 16px 10px 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+
+  background: ${({ $tone }) => {
+    if ($tone === "expired") return "#f3f4f6";
+    if ($tone === "locked") return "#fef3c7";
+    return "#eff6ff";
+  }};
+  color: ${({ $tone }) => {
+    if ($tone === "expired") return "#6b7280";
+    if ($tone === "locked") return "#92400e";
+    return "#1e40af";
+  }};
+
+  svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+`;
+
+const BannerTime = styled.span`
+  ${tw`font-black ml-auto`}
+  font-variant-numeric: tabular-nums;
 `;
 
 /* ---------- expanded panel ---------- */
@@ -270,14 +325,32 @@ const EmptyCta = styled.button`
   }
 `;
 
+/* ---------- helpers ---------- */
+const getInitialStatus = (flow) => {
+  if (flow === "two-step") return "placed";
+  if (flow === "delivery-only") return "placed";
+  return "pending";
+};
+
+const flowForOrder = (order, tenantFlow) => {
+  if (order?.flowAtCreation) return order.flowAtCreation;
+  if (["pending", "preparing", "ready"].includes(order?.status)) {
+    return order.status === "ready" ? "four-step" : "three-step";
+  }
+  if (order?.status === "completed") return "three-step";
+  if (order?.status === "delivered") return "delivery-only";
+  if (order?.status === "placed") return "two-step";
+  return tenantFlow || "three-step";
+};
+
 /* ---------- main ---------- */
 const OrderList = () => {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  //  const [errorMessage, setErrorMessage] = useState("");
-  // const [showErrorModal, setShowErrorModal] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
+  const [now, setNow] = useState(Date.now());
+  const [toast, setToast] = useState(null);
 
   const navigate = useNavigate();
   const token = GetToken();
@@ -290,6 +363,23 @@ const OrderList = () => {
   const statusFlowEnabled = useSelector(
     (state) => state.table.statusFlowEnabled,
   );
+  const customerEditWindow = useSelector(
+    (state) => state.table.customerEditWindow,
+  );
+
+  const tenantFlow = statusFlowEnabled ? "three-step" : "two-step";
+
+  /* ---------- clock tick for the countdown ---------- */
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  /* ---------- toast ---------- */
+  const showToast = useCallback((message, tone = "info") => {
+    setToast({ message, tone });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
 
   /* ---------- ringtone ---------- */
   const playRingtone = useCallback(() => {
@@ -323,8 +413,6 @@ const OrderList = () => {
         dispatch(setActiveCount(0));
       } else {
         console.error("Error fetching orders:", error);
-        // setErrorMessage("Error fetching orders.");
-        // setShowErrorModal(true);
       }
     } finally {
       setIsLoading(false);
@@ -335,11 +423,31 @@ const OrderList = () => {
     fetchOrders();
 
     const socket = io(baseUrl, { auth: { token } });
+
     socket.on("orderUpdated", (payload) => {
       fetchOrders();
-      if (!payload || payload.payed !== true) {
+      // Only ring for state changes that affect this guest — the server
+      // sends `playSound: false` for muteable events. Also avoid ringing on
+      // a paid confirmation (payload.payed === true) which the previous
+      // version filtered out.
+      if (payload?.playSound !== false && payload?.payed !== true) {
         playRingtone();
       }
+    });
+
+    socket.on("orderReady", (payload) => {
+      fetchOrders();
+      if (payload?.playSound !== false) playRingtone();
+      if (payload?.tableNumber) {
+        showToast(
+          `${Language.readyForPickup || "Ready for pickup"} · ${Language.table || "Table"} ${payload.tableNumber}`,
+          "success",
+        );
+      }
+    });
+
+    socket.on("orderDelivered", () => {
+      fetchOrders();
     });
 
     return () => {
@@ -349,7 +457,7 @@ const OrderList = () => {
         ringtoneRef.current = null;
       }
     };
-  }, [token, fetchOrders, playRingtone]);
+  }, [token, fetchOrders, playRingtone, showToast, Language]);
 
   /* ---------- derived ---------- */
   const { totalWithoutTips, totalWithTips } = useMemo(() => {
@@ -366,6 +474,73 @@ const OrderList = () => {
       totalWithTips: withTips.toFixed(2),
     };
   }, [orders]);
+
+  /* ---------- editing rules ---------- */
+  const getEditState = (order) => {
+    // terminal → locked
+    if (["archived", "cancelled"].includes(order.status)) {
+      return { editable: false, tone: "expired", reason: "closed" };
+    }
+
+    const flow = flowForOrder(order, tenantFlow);
+    const initial = getInitialStatus(flow);
+    const isInitial =
+      order.status === initial ||
+      (flow === "two-step" && order.status === "completed");
+
+    // If not in the initial status, the kitchen started it — hard-locked,
+    // regardless of the window config.
+    if (!isInitial) {
+      return {
+        editable: false,
+        tone: "locked",
+        reason: "started",
+        message: Language.editWindowStartedByKitchen,
+      };
+    }
+
+    // If the window is disabled for this tenant, editable only while in initial
+    if (!customerEditWindow?.enabled) {
+      return { editable: true, tone: "open", reason: "open" };
+    }
+
+    // Compute the deadline
+    let deadlineMs = null;
+    if (order.customerEditDeadline) {
+      deadlineMs = new Date(order.customerEditDeadline).getTime();
+    } else if (customerEditWindow.from === "placed") {
+      const anchor =
+        order.statusTimestamps?.placed ||
+        order.statusTimestamps?.pending ||
+        order.timestamp ||
+        order.createdAt;
+      if (anchor) {
+        deadlineMs =
+          new Date(anchor).getTime() +
+          (Number(customerEditWindow.minutes) || 0) * 60000;
+      }
+    }
+    // From "preparing" but not yet preparing → no deadline, editable
+    if (!deadlineMs) {
+      return { editable: true, tone: "open", reason: "open" };
+    }
+
+    const remaining = deadlineMs - now;
+    if (remaining <= 0) {
+      return {
+        editable: false,
+        tone: "expired",
+        reason: "expired",
+        message: Language.editWindowExpired,
+      };
+    }
+    return {
+      editable: true,
+      tone: "open",
+      reason: "open",
+      remainingMs: remaining,
+    };
+  };
 
   /* ---------- actions ---------- */
   const handleModify = (orderId) => {
@@ -385,9 +560,12 @@ const OrderList = () => {
       });
       setOrders((prev) => prev.filter((o) => o._id !== id));
     } catch (error) {
-      console.error("Error canceling order:", error);
-      // setErrorMessage("Error canceling order.");
-      // setShowErrorModal(true);
+      const apiError = error.response?.data?.error;
+      const message =
+        apiError ||
+        Language.serverErrorEditing ||
+        "Could not cancel the order. Please try again.";
+      showToast(message, "error");
     }
   };
 
@@ -401,8 +579,11 @@ const OrderList = () => {
 
   /* ---------- helpers ---------- */
   const statusLabel = (status) => {
+    if (status === "placed") return Language.placed || "Placed";
     if (status === "pending") return Language.pending || "Pending";
     if (status === "preparing") return Language.preparing || "Preparing";
+    if (status === "ready") return Language.ready || "Ready";
+    if (status === "delivered") return Language.delivered || "Delivered";
     if (status === "completed")
       return statusFlowEnabled
         ? Language.completed || "Completed"
@@ -412,8 +593,11 @@ const OrderList = () => {
   };
 
   const statusIcon = (status) => {
+    if (status === "placed") return <CheckCircleIcon />;
     if (status === "pending") return <ClockIcon />;
     if (status === "preparing") return <FlameIcon />;
+    if (status === "ready") return <InboxIcon />;
+    if (status === "delivered") return <TruckIcon />;
     if (status === "completed") return <CheckCircleIcon />;
     if (status === "cancelled") return <XCircleIcon />;
     return <ClockIcon />;
@@ -438,6 +622,13 @@ const OrderList = () => {
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
+  };
+
+  const formatRemaining = (ms) => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
   };
 
   /* ---------- render ---------- */
@@ -470,7 +661,6 @@ const OrderList = () => {
   return (
     <AnimationRevealPage disabled>
       <Page>
-        {/* ---------- Sticky header ---------- */}
         <StickyHeader>
           <HeaderInner>
             <BackButton
@@ -502,7 +692,28 @@ const OrderList = () => {
           </HeaderInner>
         </StickyHeader>
 
-        {/* ---------- Content ---------- */}
+        {toast && (
+          <div
+            style={{
+              position: "fixed",
+              left: "50%",
+              transform: "translateX(-50%)",
+              bottom: 24,
+              zIndex: 60,
+              padding: "10px 14px",
+              borderRadius: 12,
+              background: toast.tone === "error" ? "#dc2626" : "#111827",
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 700,
+              maxWidth: "calc(100vw - 32px)",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.18)",
+            }}
+          >
+            {toast.message}
+          </div>
+        )}
+
         {orders.length === 0 ? (
           <EmptyWrap>
             <EmptyIcon>
@@ -529,8 +740,12 @@ const OrderList = () => {
                 const price = Number(order.totalPrice) || 0;
                 const tips = Number(order.tips) || 0;
                 const isCompleted = order.status === "completed";
-                const isPending = order.status === "pending";
+                const isDelivered = order.status === "delivered";
                 const isCancelled = order.status === "cancelled";
+
+                const editState = getEditState(order);
+                const showBanner =
+                  !isCompleted && !isCancelled && !isDelivered && editState;
 
                 return (
                   <Row
@@ -569,6 +784,53 @@ const OrderList = () => {
                         {isOpen ? <ChevronUpIcon /> : <ChevronDownIcon />}
                       </ChevronBox>
                     </RowHead>
+
+                    {/* Edit window banner */}
+                    {showBanner && editState.tone === "open" && (
+                      <EditWindowBanner $tone="open">
+                        <ClockIcon />
+                        <span>
+                          {Language.editWindowTitle ||
+                            "You can still modify this order"}
+                        </span>
+                        {editState.remainingMs != null && (
+                          <BannerTime>
+                            {formatRemaining(editState.remainingMs)}
+                          </BannerTime>
+                        )}
+                      </EditWindowBanner>
+                    )}
+                    {showBanner &&
+                      editState.tone === "open" &&
+                      editState.remainingMs == null && (
+                        <EditWindowBanner $tone="open">
+                          <PencilIcon />
+                          <span>
+                            {Language.editWindowTitle ||
+                              "You can still modify this order"}
+                          </span>
+                        </EditWindowBanner>
+                      )}
+                    {showBanner && editState.tone === "locked" && (
+                      <EditWindowBanner $tone="locked">
+                        <LockIcon />
+                        <span>
+                          {editState.message ||
+                            Language.editWindowStartedByKitchen ||
+                            "The kitchen has started your order"}
+                        </span>
+                      </EditWindowBanner>
+                    )}
+                    {showBanner && editState.tone === "expired" && (
+                      <EditWindowBanner $tone="expired">
+                        <LockIcon />
+                        <span>
+                          {editState.message ||
+                            Language.editWindowExpired ||
+                            "The edit window has expired"}
+                        </span>
+                      </EditWindowBanner>
+                    )}
 
                     <AnimatePresence initial={false}>
                       {isOpen && (
@@ -633,7 +895,7 @@ const OrderList = () => {
                             <CommentBlock>{order.comment}</CommentBlock>
                           )}
 
-                          {isCompleted && (
+                          {(isCompleted || isDelivered) && (
                             <ActionRow>
                               <ActionBtn
                                 type="button"
@@ -660,26 +922,30 @@ const OrderList = () => {
                             </ActionRow>
                           )}
 
-                          {!isCompleted && !isCancelled && (
+                          {!isCompleted && !isCancelled && !isDelivered && (
                             <ActionRow>
                               <ActionBtn
                                 type="button"
                                 $variant="primary"
                                 $brandColor={brandColor}
-                                disabled={!isPending}
+                                disabled={!editState.editable}
                                 onClick={() => handleModify(order._id)}
                               >
                                 <PencilIcon />
-                                {Language.modify || "Modify"}
+                                {editState.editable
+                                  ? Language.modify || "Modify"
+                                  : Language.editWindowExpiredShort || "Locked"}
                               </ActionBtn>
                               <ActionBtn
                                 type="button"
                                 $variant="danger"
-                                disabled={!isPending}
+                                disabled={!editState.editable}
                                 onClick={() => handleCancel(order._id)}
                               >
                                 <TrashIcon />
-                                {Language.cancel || "Cancel"}
+                                {editState.editable
+                                  ? Language.cancel || "Cancel"
+                                  : Language.editWindowExpiredShort || "Locked"}
                               </ActionBtn>
                             </ActionRow>
                           )}
@@ -691,7 +957,6 @@ const OrderList = () => {
               })}
             </AnimatePresence>
 
-            {/* ---------- Totals summary ---------- */}
             <Summary>
               <SummaryRow>
                 <SummaryLabel>
@@ -711,7 +976,6 @@ const OrderList = () => {
           </Content>
         )}
 
-        {/* ---------- Cancel confirm ---------- */}
         <AnimatePresence>
           {confirmId && (
             <ConfirmOverlay
