@@ -6,10 +6,7 @@ import GlobalStyles from "styles/GlobalStyles";
 import styled from "styled-components";
 import { baseUrl } from "helpers/BaseUrl";
 import { GetToken } from "helpers/GetToken";
-import {
-  setBrandColor,
-  setCustomerEditWindow,
-} from "features/TableSlice";
+import { setBrandColor, setCustomerEditWindow } from "features/TableSlice";
 import { css } from "styled-components/macro"; //eslint-disable-line
 import {
   BrowserRouter as Router,
@@ -28,6 +25,7 @@ import translations from "app/language.js";
 import { useSelector } from "react-redux";
 import SectionSelector from "components/SectionsBobbles.js/DisplaySections.js";
 import TipsPage from "components/features/TipsPage.js";
+import { GlobalModalProvider } from "./components/GlobalModalProvider";
 // import NotFoundPage from "./pages/NotFoundPage"; // Import the NotFoundPage component
 
 // Move HighlightedText definition outside of the App component
@@ -83,46 +81,47 @@ export default function App() {
   }, [dispatch]);
   return (
     <>
-      <GlobalStyles />
-      <Router>
-        <Routes>
-          <Route
-            path="/order/:orderId?"
-            element={
-              <PrivateRoute>
-                <SliderCard />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/orders"
-            element={
-              <PrivateRoute>
-                <Orders />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/order/rate/:orderId"
-            element={
-              <PrivateRoute>
-                <RatePage />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/order/tips/:orderId"
-            element={
-              <PrivateRoute>
-                <TipsPage />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/menu"
-            element={
-              <PrivateRoute>
-                {/* <TabGrid
+      <GlobalModalProvider>
+        <GlobalStyles />
+        <Router>
+          <Routes>
+            <Route
+              path="/order/:orderId?"
+              element={
+                <PrivateRoute>
+                  <SliderCard />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/orders"
+              element={
+                <PrivateRoute>
+                  <Orders />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/order/rate/:orderId"
+              element={
+                <PrivateRoute>
+                  <RatePage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/order/tips/:orderId"
+              element={
+                <PrivateRoute>
+                  <TipsPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/menu"
+              element={
+                <PrivateRoute>
+                  {/* <TabGrid
                   heading={
                     <>
                       {Language.menuCheck}{" "}
@@ -130,50 +129,51 @@ export default function App() {
                     </>
                   }
                 /> */}
-                <SectionSelector
-                  heading={
-                    <>
-                      {Language.welcomeTo}:
-                      <HighlightedText $brandColor={brandColor}>
-                        {placeName}
-                      </HighlightedText>{" "}
-                    </>
-                  }
-                  subHeading={
-                    <>
-                      {Language.tabnum}:
-                      <HighlightedText>{tableNumber}</HighlightedText>
-                    </>
-                  }
-                />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/categories/:categoryId"
-            element={
-              <>
-                <TabGrid
-                  heading={
-                    <PrivateRoute>
-                      {Language.menuCheck}{" "}
-                      <HighlightedText $brandColor={brandColor}>
-                        {Language.menu || "Menu"}
-                      </HighlightedText>
-                    </PrivateRoute>
-                  }
-                />
-              </>
-            }
-          />
-          <Route path="/thank-you" element={<ThankYouPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<Navigate to="/menu" />} />
-          {/* <Route path="/404" element={<NotFoundPage />} /> */}
-          <Route path="*" element={<Navigate to="/404" />} />{" "}
-          {/* Catch-all route */}
-        </Routes>
-      </Router>
+                  <SectionSelector
+                    heading={
+                      <>
+                        {Language.welcomeTo}:
+                        <HighlightedText $brandColor={brandColor}>
+                          {placeName}
+                        </HighlightedText>{" "}
+                      </>
+                    }
+                    subHeading={
+                      <>
+                        {Language.tabnum}:
+                        <HighlightedText>{tableNumber}</HighlightedText>
+                      </>
+                    }
+                  />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/categories/:categoryId"
+              element={
+                <>
+                  <TabGrid
+                    heading={
+                      <PrivateRoute>
+                        {Language.menuCheck}{" "}
+                        <HighlightedText $brandColor={brandColor}>
+                          {Language.menu || "Menu"}
+                        </HighlightedText>
+                      </PrivateRoute>
+                    }
+                  />
+                </>
+              }
+            />
+            <Route path="/thank-you" element={<ThankYouPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/" element={<Navigate to="/menu" />} />
+            {/* <Route path="/404" element={<NotFoundPage />} /> */}
+            <Route path="*" element={<Navigate to="/404" />} />{" "}
+            {/* Catch-all route */}
+          </Routes>
+        </Router>
+      </GlobalModalProvider>
     </>
   );
 }

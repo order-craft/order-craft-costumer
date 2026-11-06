@@ -20,7 +20,8 @@ import { ReactComponent as TrashIcon } from "feather-icons/dist/icons/trash-2.sv
 import { ReactComponent as ArrowRightIcon } from "feather-icons/dist/icons/arrow-right.svg";
 import { ReactComponent as MessageSquareIcon } from "feather-icons/dist/icons/message-square.svg";
 import { ReactComponent as ShoppingBagIcon } from "feather-icons/dist/icons/shopping-bag.svg";
-
+import { useGlobalModal } from "../../components/GlobalModalProvider";
+import { friendlyErrorMessage } from "../../helpers/friendlyErrors";
 /* ---------- layout ---------- */
 const Page = tw.div`min-h-screen bg-gray-100 pb-32`;
 const StickyHeader = tw.div`sticky top-0 z-30 bg-white border-b border-gray-200`;
@@ -261,7 +262,7 @@ export default function OrderScreen() {
   const Language = translations[t];
   const brandColor = useSelector((state) => state.table.brandColor);
   const items = useSelector((state) => state.basket.items);
-
+  const modal = useGlobalModal();
   /* ---------- fetch (edit mode) ---------- */
   const fetchOrder = useCallback(async () => {
     try {
@@ -338,9 +339,14 @@ export default function OrderScreen() {
 
   /* ---------- remove ---------- */
   const handleRemove = async (row) => {
-    const confirmed = window.confirm(
-      Language.removeConfirm || "Are you sure you want to remove this?",
-    );
+    const confirmed = await modal.confirm({
+      title: Language.cancel || "Cancel order",
+      message:
+        Language.removeConfirm || "Are you sure you want to cancel this order?",
+      confirmLabel: Language.yes || "Yes, cancel",
+      cancelLabel: Language.no || "Keep it",
+      confirmTone: "danger",
+    });
     if (!confirmed) return;
 
     if (orderId) {
@@ -365,7 +371,10 @@ export default function OrderScreen() {
         }
       } catch (error) {
         console.error("Error removing item:", error);
-        alert("Error removing item from order");
+        modal.error({
+          title: "Error removing item from order",
+          message: friendlyErrorMessage(error),
+        });
       } finally {
         setIsLoading(false);
       }
@@ -409,11 +418,17 @@ export default function OrderScreen() {
         if (!orderId) dispatch(clearBasket());
         navigate("/orders");
       } else {
-        alert("Failed to place order");
+        modal.error({
+          title: "Failed to place order",
+          message: friendlyErrorMessage("Failed to place order"),
+        });
       }
     } catch (error) {
       console.error("Error placing order:", error);
-      alert("Error placing order");
+      modal.error({
+        title: "Error placing order",
+        message: friendlyErrorMessage(error),
+      });
     } finally {
       setIsLoading(false);
     }

@@ -34,6 +34,8 @@ import { ReactComponent as ShoppingBagIcon } from "feather-icons/dist/icons/shop
 import { ReactComponent as InboxIcon } from "feather-icons/dist/icons/inbox.svg";
 import { ReactComponent as TruckIcon } from "feather-icons/dist/icons/truck.svg";
 import { ReactComponent as LockIcon } from "feather-icons/dist/icons/lock.svg";
+import { useGlobalModal } from "../../components/GlobalModalProvider";
+import { friendlyErrorMessage } from "../../helpers/friendlyErrors";
 
 /* ---------- layout ---------- */
 const Page = tw.div`min-h-screen bg-gray-100 pb-24`;
@@ -351,6 +353,7 @@ const OrderList = () => {
   const [confirmId, setConfirmId] = useState(null);
   const [now, setNow] = useState(Date.now());
   const [toast, setToast] = useState(null);
+  const modal = useGlobalModal();
 
   const navigate = useNavigate();
   const token = GetToken();
@@ -578,12 +581,10 @@ const OrderList = () => {
       });
       setOrders((prev) => prev.filter((o) => o._id !== id));
     } catch (error) {
-      const apiError = error.response?.data?.error;
-      const message =
-        apiError ||
-        Language.serverErrorEditing ||
-        "Could not cancel the order. Please try again.";
-      showToast(message, "error");
+      modal.error({
+        title: "Couldn't cancel the order",
+        message: friendlyErrorMessage(error),
+      });
     }
   };
 

@@ -13,7 +13,8 @@ import { ReactComponent as ChevronLeftIcon } from "feather-icons/dist/icons/chev
 import { ReactComponent as CheckIcon } from "feather-icons/dist/icons/check.svg";
 import { ReactComponent as CheckCircleIcon } from "feather-icons/dist/icons/check-circle.svg";
 import { ReactComponent as DollarSignIcon } from "feather-icons/dist/icons/dollar-sign.svg";
-
+import { useGlobalModal } from "../../components/GlobalModalProvider";
+import { friendlyErrorMessage } from "../../helpers/friendlyErrors";
 /* ---------- layout ---------- */
 const Page = tw.div`min-h-screen bg-gray-100 pb-32`;
 const StickyHeader = tw.div`sticky top-0 z-30 bg-white border-b border-gray-200`;
@@ -232,7 +233,7 @@ const TipsPage = () => {
   const [selectedTip, setSelectedTip] = useState(null);
   const [customTip, setCustomTip] = useState("");
   const [tipped, setTipped] = useState(false);
-
+  const modal = useGlobalModal();
   const token = GetToken();
   const t = useSelector((state) => state.language.language);
   const Language = translations[t];
@@ -249,7 +250,10 @@ const TipsPage = () => {
           setTipped(true);
         }
       } catch (error) {
-        console.error("Error fetching order:", error);
+        modal.error({
+          title: "Error fetching order",
+          message: friendlyErrorMessage(error),
+        });
       } finally {
         setIsLoading(false);
       }
@@ -285,7 +289,10 @@ const TipsPage = () => {
       );
       setTipped(true);
     } catch (error) {
-      console.error("Error submitting tip:", error);
+      modal.error({
+        title: "Error submitting tip",
+        message: friendlyErrorMessage(error),
+      });
     } finally {
       setSubmitting(false);
     }

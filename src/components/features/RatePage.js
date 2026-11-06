@@ -12,7 +12,8 @@ import translations from "app/language";
 import { ReactComponent as ChevronLeftIcon } from "feather-icons/dist/icons/chevron-left.svg";
 import { ReactComponent as StarIcon } from "feather-icons/dist/icons/star.svg";
 import { ReactComponent as CheckCircleIcon } from "feather-icons/dist/icons/check-circle.svg";
-
+import { useGlobalModal } from "../../components/GlobalModalProvider";
+import { friendlyErrorMessage } from "../../helpers/friendlyErrors";
 /* ---------- layout ---------- */
 const Page = tw.div`min-h-screen bg-gray-100 pb-32`;
 const StickyHeader = tw.div`sticky top-0 z-30 bg-white border-b border-gray-200`;
@@ -241,7 +242,7 @@ const RatePage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [ratings, setRatings] = useState({});
   const [submitted, setSubmitted] = useState(false);
-
+  const modal = useGlobalModal();
   const token = GetToken();
   const t = useSelector((state) => state.language.language);
   const Language = translations[t];
@@ -256,7 +257,10 @@ const RatePage = () => {
         setOrder(response.data);
         if (response.data?.rated) setSubmitted(true);
       } catch (error) {
-        console.error("Error fetching order:", error);
+        modal.error({
+          title: "Error fetching order",
+          message: friendlyErrorMessage(error),
+        });
       } finally {
         setIsLoading(false);
       }
@@ -281,7 +285,10 @@ const RatePage = () => {
       );
       setSubmitted(true);
     } catch (error) {
-      console.error("Error submitting ratings:", error);
+      modal.error({
+        title: "Error submitting ratings:",
+        message: friendlyErrorMessage(error),
+      });
     } finally {
       setIsLoading(false);
     }
