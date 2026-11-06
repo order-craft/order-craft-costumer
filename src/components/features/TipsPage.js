@@ -259,7 +259,7 @@ const TipsPage = () => {
       }
     };
     fetchOrder();
-  }, [orderId, token]);
+  }, [orderId, token, modal]);
 
   const handlePresetSelect = (amount) => {
     setSelectedTip(amount);

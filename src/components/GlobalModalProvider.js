@@ -4,7 +4,6 @@ import React, {
   useContext,
   useRef,
   useState,
-  useMemo,
 } from "react";
 import GlobalModal from "./GlobalModal";
 
@@ -92,10 +91,7 @@ export const GlobalModalProvider = ({ children }) => {
   // Memoize the context value so consumers don't see a new object on
   // every provider render. This is what lets us safely add `modal` to
   // useEffect deps in consumer components.
-  const value = React.useMemo(
-    () => ({ info, success, error, confirm }),
-    [info, success, error, confirm],
-  );
+  const value = { info, success, error, confirm };
   return (
     <GlobalModalContext.Provider value={value}>
       {children}

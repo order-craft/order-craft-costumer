@@ -266,7 +266,7 @@ const RatePage = () => {
       }
     };
     fetchOrder();
-  }, [orderId, token]);
+  }, [orderId, token, modal]);
 
   const handleRating = (productId, value) => {
     setRatings((prev) => ({ ...prev, [productId]: value }));
