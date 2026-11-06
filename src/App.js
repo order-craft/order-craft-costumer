@@ -6,7 +6,10 @@ import GlobalStyles from "styles/GlobalStyles";
 import styled from "styled-components";
 import { baseUrl } from "helpers/BaseUrl";
 import { GetToken } from "helpers/GetToken";
-import { setStatusFlowEnabled, setBrandColor, setCustomerEditWindow } from "features/TableSlice";
+import {
+  setBrandColor,
+  setCustomerEditWindow,
+} from "features/TableSlice";
 import { css } from "styled-components/macro"; //eslint-disable-line
 import {
   BrowserRouter as Router,
@@ -46,17 +49,33 @@ export default function App() {
     const token = GetToken();
     if (!token) return;
 
-    const socket = io(baseUrl, { auth: { token } });
+    const socket = io(baseUrl, {
+      auth: { token },
+      transports: ["websocket"],
+    });
+
+    socket.on("connect", () => {
+      console.log("[ws] connected", socket.id);
+    });
+    socket.on("connect_error", (err) => {
+      console.error("[ws] connect_error", err.message);
+    });
+    socket.on("disconnect", (reason) => {
+      console.log("[ws] disconnected", reason);
+    });
 
     socket.on("tenantConfigChanged", (cfg) => {
-      if (typeof cfg?.statusFlowEnabled === "boolean") {
-        dispatch(setStatusFlowEnabled(cfg.statusFlowEnabled));
-      }
+      console.log("[ws] tenantConfigChanged", cfg);
       if (typeof cfg?.brandColor === "string") {
         dispatch(setBrandColor(cfg.brandColor));
       }
       if (cfg?.customerEditWindow) {
         dispatch(setCustomerEditWindow(cfg.customerEditWindow));
+      }
+      if (typeof cfg?.orderFlow === "string") {
+        // Optional: store orderFlow if the customer app uses it anywhere.
+        // The current customer app doesn't have an `orderFlow` slice, so
+        // this is a safe no-op unless you add one later.
       }
     });
 

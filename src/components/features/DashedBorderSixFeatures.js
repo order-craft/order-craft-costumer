@@ -422,31 +422,48 @@ const OrderList = () => {
   useEffect(() => {
     fetchOrders();
 
-    const socket = io(baseUrl, { auth: { token } });
+    const socket = io(baseUrl, {
+      auth: { token },
+      transports: ["websocket"],
+    });
+
+    socket.on("connect", () => {
+      console.log("[orders-ws] connected", socket.id);
+    });
+    socket.on("connect_error", (err) => {
+      console.error("[orders-ws] connect_error", err.message);
+    });
+    socket.on("disconnect", (reason) => {
+      console.log("[orders-ws] disconnected", reason);
+    });
 
     socket.on("orderUpdated", (payload) => {
+      console.log("[orders-ws] orderUpdated", payload);
       fetchOrders();
       // Only ring for state changes that affect this guest — the server
       // sends `playSound: false` for muteable events. Also avoid ringing on
-      // a paid confirmation (payload.payed === true) which the previous
-      // version filtered out.
+      // a paid confirmation (payload.payed === true).
       if (payload?.playSound !== false && payload?.payed !== true) {
         playRingtone();
       }
     });
 
     socket.on("orderReady", (payload) => {
+      console.log("[orders-ws] orderReady", payload);
       fetchOrders();
       if (payload?.playSound !== false) playRingtone();
       if (payload?.tableNumber) {
         showToast(
-          `${Language.readyForPickup || "Ready for pickup"} · ${Language.table || "Table"} ${payload.tableNumber}`,
+          `${Language.readyForPickup || "Ready for pickup"} · ${
+            Language.table || "Table"
+          } ${payload.tableNumber}`,
           "success",
         );
       }
     });
 
     socket.on("orderDelivered", () => {
+      console.log("[orders-ws] orderDelivered");
       fetchOrders();
     });
 
@@ -457,7 +474,8 @@ const OrderList = () => {
         ringtoneRef.current = null;
       }
     };
-  }, [token, fetchOrders, playRingtone, showToast, Language]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, fetchOrders, playRingtone, showToast]);
 
   /* ---------- derived ---------- */
   const { totalWithoutTips, totalWithTips } = useMemo(() => {
